@@ -1,0 +1,22 @@
+@"
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Secrets
+.env
+
+# Django generated files
+db.sqlite3
+staticfiles/
+media/
+
+# IDE
+.vscode/
+.idea/
+"@ | Set-Content .gitignore
