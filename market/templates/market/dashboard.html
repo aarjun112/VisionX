@@ -15,7 +15,7 @@
         <nav>
             <a class="active" href="/">▦ &nbsp; Dashboard</a>
             <a href="#market">◷ &nbsp; Market Overview</a>
-            <a href="#stocks">▤ &nbsp; All Companies</a>
+            <a href="#stocks">▤ &nbsp; Top Movers</a>
             <a href="#chart">⌁ &nbsp; Charts & Analysis</a>
             <a href="#watchlist">☆ &nbsp; Watchlist</a>
         </nav>
@@ -58,7 +58,7 @@
             <article class="panel stat">
                 <p>MARKET STATUS</p>
                 <h2 class="small-heading">{% if market.connected %}Connected{% else %}Not connected{% endif %}</h2>
-                <span class="muted">{{ market.companies|length }} companies loaded</span>
+                <span class="muted">{{ market.total_companies }} companies tracked</span>
             </article>
         </section>
 
@@ -79,8 +79,8 @@
         <section class="panel table-panel" id="stocks">
             <div class="section-heading">
                 <div>
-                    <p class="muted">EQUITY SCANNER</p>
-                    <h2>All Companies</h2>
+                    <p class="muted">TOP MOVERS</p>
+                    <h2>Top 15 Gainers</h2>
                 </div>
                 <input id="search" type="search" placeholder="Search symbol or company...">
             </div>
@@ -88,22 +88,59 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>COMPANY</th>
                             <th>SYMBOL</th>
                             <th>LAST PRICE</th>
                             <th>CHANGE</th>
                         </tr>
                     </thead>
-                    <tbody id="stock-rows">
-                        {% for c in market.companies %}
+                    <tbody class="mover-rows">
+                        {% for c in market.gainers %}
                         <tr>
+                            <td>{{ forloop.counter }}</td>
                             <td>{{ c.name }}</td>
                             <td>{{ c.symbol }}</td>
                             <td>{{ c.price }}</td>
-                            <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change }}</td>
+                            <td class="positive">{{ c.change }}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="4">No data received</td></tr>
+                        <tr><td colspan="5">No gainers found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel table-panel" id="losers">
+            <div class="section-heading">
+                <div>
+                    <p class="muted">TOP MOVERS</p>
+                    <h2>Top 15 Losers</h2>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>COMPANY</th>
+                            <th>SYMBOL</th>
+                            <th>LAST PRICE</th>
+                            <th>CHANGE</th>
+                        </tr>
+                    </thead>
+                    <tbody class="mover-rows">
+                        {% for c in market.losers %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ c.name }}</td>
+                            <td>{{ c.symbol }}</td>
+                            <td>{{ c.price }}</td>
+                            <td class="negative">{{ c.change }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5">No losers found</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -162,9 +199,10 @@
             }).observe(container);
         }
 
+        // Search filters both the gainers and losers tables
         document.getElementById("search").addEventListener("input", function () {
             const query = this.value.toLowerCase();
-            document.querySelectorAll("#stock-rows tr").forEach(row => {
+            document.querySelectorAll(".mover-rows tr").forEach(row => {
                 row.hidden = !row.textContent.toLowerCase().includes(query);
             });
         });
