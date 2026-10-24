@@ -1,0 +1,42 @@
+{% extends "market/auth_base.html" %}
+
+{% block title %}Sign up{% endblock %}
+
+{% block card %}
+    <h1>Create your account</h1>
+    <p class="sub">Pick a username and password to get started.</p>
+
+    {% if form.non_field_errors %}
+        <div class="alert">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% for field in form %}
+        <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            <div class="input-wrap{% if field.field.widget.input_type == 'password' %} has-toggle{% endif %}">
+                {% if field.name == 'username' %}
+                    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+                {% else %}
+                    <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                {% endif %}
+
+                {{ field }}
+
+                {% if field.field.widget.input_type == 'password' %}
+                    <button type="button" class="toggle-pw">Show</button>
+                {% endif %}
+            </div>
+            {% for error in field.errors %}
+                <p class="error-text">{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <button class="btn" type="submit">Create account</button>
+    </form>
+
+    <p class="alt">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+{% endblock %}

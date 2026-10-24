@@ -1,0 +1,43 @@
+{% extends "market/auth_base.html" %}
+
+{% block title %}Log in{% endblock %}
+
+{% block card %}
+    <h1>Welcome back</h1>
+    <p class="sub">Log in to continue to your dashboard.</p>
+
+    {% if form.errors %}
+        <div class="alert">Incorrect username or password. Please try again.</div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="field">
+            <label for="id_username">Username</label>
+            <div class="input-wrap">
+                <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+                <input type="text" name="username" id="id_username"
+                       value="{{ form.username.value|default:'' }}"
+                       placeholder="Enter your username"
+                       autocomplete="username" autofocus required>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="id_password">Password</label>
+            <div class="input-wrap has-toggle">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <input type="password" name="password" id="id_password"
+                       placeholder="Enter your password"
+                       autocomplete="current-password" required>
+                <button type="button" class="toggle-pw">Show</button>
+            </div>
+        </div>
+
+        <button class="btn" type="submit">Log in</button>
+    </form>
+
+    <p class="alt">New to VisionX? <a href="{% url 'signup' %}">Create an account</a></p>
+{% endblock %}
