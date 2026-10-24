@@ -1,0 +1,258 @@
+:root {
+    --bg: #070d1a;
+    --card: #0f172a;
+    --line: #1e293b;
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --teal: #14b8a6;
+    --blue: #38bdf8;
+    --red: #f87171;
+}
+
+* { box-sizing: border-box; }
+
+.auth-body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+.auth-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+}
+
+/* ---------- left brand panel ---------- */
+.auth-brand {
+    position: relative;
+    overflow: hidden;
+    padding: 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background:
+        radial-gradient(circle at 15% 10%, rgba(34, 197, 94, 0.22), transparent 45%),
+        radial-gradient(circle at 90% 85%, rgba(56, 189, 248, 0.20), transparent 45%),
+        linear-gradient(160deg, #0b1426 0%, #070d1a 100%);
+    border-right: 1px solid var(--line);
+}
+
+.auth-brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at 40% 40%, #000 0%, transparent 75%);
+    -webkit-mask-image: radial-gradient(circle at 40% 40%, #000 0%, transparent 75%);
+    pointer-events: none;
+}
+
+.brand-top, .brand-mid, .brand-bottom { position: relative; z-index: 1; }
+
+.brand-logo {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0;
+}
+.brand-logo span { color: var(--green); }
+
+.brand-tag {
+    margin: 4px 0 0;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--muted);
+}
+
+.brand-mid h2 {
+    font-size: 40px;
+    line-height: 1.12;
+    margin: 0 0 14px;
+    letter-spacing: -1px;
+}
+.brand-mid h2 em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--green), var(--blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.brand-mid p {
+    margin: 0 0 26px;
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 440px;
+    line-height: 1.55;
+}
+
+.spark { width: 100%; max-width: 460px; height: auto; display: block; }
+.spark .line {
+    stroke-dasharray: 900;
+    stroke-dashoffset: 900;
+    animation: draw 2.4s ease forwards 0.3s;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.features { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.features li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #cbd5e1;
+    font-size: 15px;
+}
+.features .dot {
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.14);
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.brand-bottom { font-size: 12px; color: #64748b; }
+
+/* ---------- right form panel ---------- */
+.auth-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 410px;
+    animation: rise 0.55s ease both;
+}
+@keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-logo { display: none; margin-bottom: 24px; }
+
+.auth-card h1 {
+    margin: 0 0 6px;
+    font-size: 30px;
+    letter-spacing: -0.7px;
+}
+.auth-card .sub {
+    margin: 0 0 26px;
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.field { margin-bottom: 18px; }
+.field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #cbd5e1;
+}
+
+.input-wrap { position: relative; }
+.input-wrap svg.icon {
+    position: absolute;
+    left: 14px; top: 50%;
+    width: 18px; height: 18px;
+    transform: translateY(-50%);
+    stroke: #64748b;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    transition: stroke 0.2s;
+}
+.input-wrap input {
+    width: 100%;
+    padding: 14px 16px 14px 44px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.input-wrap input::placeholder { color: #475569; }
+.input-wrap input:focus {
+    outline: none;
+    border-color: var(--blue);
+    background: #0b1426;
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+}
+.input-wrap:focus-within svg.icon { stroke: var(--blue); }
+.input-wrap.has-toggle input { padding-right: 64px; }
+
+.toggle-pw {
+    position: absolute;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+.toggle-pw:hover { color: #fff; background: rgba(148, 163, 184, 0.12); }
+
+.error-text { margin: 7px 0 0; font-size: 13px; color: var(--red); }
+
+.alert {
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(248, 113, 113, 0.10);
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+    font-size: 14px;
+}
+
+.btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 14px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--green), var(--teal));
+    color: #04210f;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.25);
+}
+.btn:hover { transform: translateY(-1px); filter: brightness(1.07); box-shadow: 0 14px 30px rgba(34, 197, 94, 0.32); }
+.btn:active { transform: translateY(0); }
+
+.alt {
+    margin: 24px 0 0;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+}
+.alt a { color: var(--blue); font-weight: 600; text-decoration: none; }
+.alt a:hover { text-decoration: underline; }
+
+.legal { margin: 22px 0 0; text-align: center; font-size: 12px; color: #475569; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 920px) {
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-brand { display: none; }
+    .mobile-logo { display: block; }
+}

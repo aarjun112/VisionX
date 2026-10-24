@@ -15,11 +15,17 @@
         <nav>
             <a class="active" href="/">▦ &nbsp; Dashboard</a>
             <a href="#market">◷ &nbsp; Market Overview</a>
+            <a href="#movers">▲ &nbsp; Top Movers</a>
             <a href="#stocks">▤ &nbsp; All Companies</a>
             <a href="#chart">⌁ &nbsp; Charts & Analysis</a>
-            <a href="#watchlist">☆ &nbsp; Watchlist</a>
         </nav>
-        <div class="sidebar-bottom">VISIONX · EARLY ACCESS</div>
+        <div class="sidebar-bottom">
+            <p style="margin:0 0 10px;">Signed in as <strong>{{ user.username }}</strong></p>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">Log out</button>
+            </form>
+        </div>
     </aside>
 
     <main class="main">
@@ -48,7 +54,7 @@
             <article class="panel stat">
                 <p>TOTAL TURNOVER</p>
                 <h2>{{ market.turnover }}</h2>
-                <span class="muted">Sum of today's trades</span>
+                <span class="muted">Sum of the last session's trades</span>
             </article>
             <article class="panel stat">
                 <p>MARKET VOLUME</p>
@@ -58,7 +64,7 @@
             <article class="panel stat">
                 <p>MARKET STATUS</p>
                 <h2 class="small-heading">{% if market.connected %}Connected{% else %}Not connected{% endif %}</h2>
-                <span class="muted">{{ market.companies|length }} companies loaded</span>
+                <span class="muted">{{ market.total_companies }} companies tracked</span>
             </article>
         </section>
 
@@ -76,11 +82,81 @@
             </p>
         </section>
 
+        <section class="panel table-panel" id="movers">
+            <div class="section-heading">
+                <div>
+                    <p class="muted">TOP MOVERS</p>
+                    <h2>Top 15 Gainers</h2>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>COMPANY</th>
+                            <th>SYMBOL</th>
+                            <th>LAST PRICE</th>
+                            <th>CHANGE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in market.gainers %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                            <td>{{ c.price }}</td>
+                            <td class="positive">{{ c.change }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5">No gainers found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel table-panel" id="losers">
+            <div class="section-heading">
+                <div>
+                    <p class="muted">TOP MOVERS</p>
+                    <h2>Top 15 Losers</h2>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>COMPANY</th>
+                            <th>SYMBOL</th>
+                            <th>LAST PRICE</th>
+                            <th>CHANGE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in market.losers %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                            <td>{{ c.price }}</td>
+                            <td class="negative">{{ c.change }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5">No losers found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="panel table-panel" id="stocks">
             <div class="section-heading">
                 <div>
                     <p class="muted">EQUITY SCANNER</p>
-                    <h2>All Companies</h2>
+                    <h2>All Companies ({{ market.total_companies }})</h2>
                 </div>
                 <input id="search" type="search" placeholder="Search symbol or company...">
             </div>
@@ -94,11 +170,11 @@
                             <th>CHANGE</th>
                         </tr>
                     </thead>
-                    <tbody id="stock-rows">
+                    <tbody id="all-rows">
                         {% for c in market.companies %}
                         <tr>
-                            <td>{{ c.name }}</td>
-                            <td>{{ c.symbol }}</td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
                             <td>{{ c.price }}</td>
                             <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change }}</td>
                         </tr>
@@ -162,9 +238,10 @@
             }).observe(container);
         }
 
+        // Search filters the All Companies table
         document.getElementById("search").addEventListener("input", function () {
             const query = this.value.toLowerCase();
-            document.querySelectorAll("#stock-rows tr").forEach(row => {
+            document.querySelectorAll("#all-rows tr").forEach(row => {
                 row.hidden = !row.textContent.toLowerCase().includes(query);
             });
         });

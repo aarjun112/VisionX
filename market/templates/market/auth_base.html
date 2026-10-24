@@ -1,0 +1,68 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}VisionX{% endblock %} | VisionX</title>
+    <link rel="stylesheet" href="{% static 'market/css/auth.css' %}">
+</head>
+<body class="auth-body">
+<div class="auth-shell">
+
+    <section class="auth-brand">
+        <div class="brand-top">
+            <h2 class="brand-logo">Vision<span>X</span></h2>
+            <p class="brand-tag">NEPAL MARKETS</p>
+        </div>
+
+        <div class="brand-mid">
+            <h2>See the <em>Nepal market</em> clearly.</h2>
+            <p>Track NEPSE-listed companies, spot the day's biggest movers and study price charts in one place.</p>
+
+            <svg class="spark" viewBox="0 0 400 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="fillg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#22c55e" stop-opacity="0.28"/>
+                        <stop offset="1" stop-color="#22c55e" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <path d="M0,100 L40,88 L80,102 L120,66 L160,76 L200,46 L240,60 L280,30 L320,40 L360,14 L400,22 L400,130 L0,130 Z" fill="url(#fillg)"/>
+                <path class="line" d="M0,100 L40,88 L80,102 L120,66 L160,76 L200,46 L240,60 L280,30 L320,40 L360,14 L400,22" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+
+        <div class="brand-bottom">
+            <ul class="features">
+                <li><span class="dot">▲</span> Top 15 gainers and losers</li>
+                <li><span class="dot">▤</span> Every listed company, searchable</li>
+                <li><span class="dot">⌁</span> Candlestick chart for each stock</li>
+            </ul>
+            <p style="margin-top:26px;">Unofficial NEPSE data. May be delayed. Not financial advice.</p>
+        </div>
+    </section>
+
+    <section class="auth-panel">
+        <div class="auth-card">
+            <div class="mobile-logo">
+                <h2 class="brand-logo">Vision<span>X</span></h2>
+                <p class="brand-tag">NEPAL MARKETS</p>
+            </div>
+            {% block card %}{% endblock %}
+        </div>
+    </section>
+
+</div>
+
+<script>
+    document.querySelectorAll(".toggle-pw").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var input = btn.parentElement.querySelector("input");
+            var show = input.type === "password";
+            input.type = show ? "text" : "password";
+            btn.textContent = show ? "Hide" : "Show";
+        });
+    });
+</script>
+</body>
+</html>
