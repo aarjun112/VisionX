@@ -1,14 +1,15 @@
 import inspect
 import traceback
-from datetime import date, timedelta
+from datetime import date
 
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from .forms import SignUpForm
 from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import redirect, render
 from nepsepy import NepseClient
+
+from .forms import SignUpForm
 
 
 # ---------- helpers ----------
@@ -49,6 +50,9 @@ def extract_rows(data):
     return data or []
 
 
+NEPAL_OFFSET = 5 * 3600 + 45 * 60  # chart shows UTC, so shift to Nepal time (UTC+5:45)
+
+
 # ---------- today's prices (shared by dashboard and company page) ----------
 
 def get_today_rows():
@@ -70,6 +74,201 @@ def get_today_rows():
         print('NEPSE fetch failed:')
         traceback.print_exc()
     return cache.get('nepse_rows_stale') or {}
+
+
+# ---------- NEPSE index (dashboard chart) ----------
+
+INDEX_ID = 58                  # NEPSE index id used by NEPSE
+INDEX_CACHE_SECONDS = 600      # 10 minutes
+INDEX_INTRADAY_SECONDS = 120   # 2 minutes
+
+
+def fetch_index_rows(client, size=500, max_pages=20):
+    """Fetch every page of NEPSE index history."""
+    all_rows, seen, page = [], set(), 1
+    while page <= max_pages:
+        data = client.index_history(index_id=INDEX_ID, page=page, size=size)
+        rows = extract_rows(data)
+        if not rows:
+            break
+
+        new = 0
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            key = r.get('businessDate') or id(r)
+            if key not in seen:
+                seen.add(key)
+                all_rows.append(r)
+                new += 1
+        if new == 0:
+            break
+
+        total_pages = data.get('totalPages') if isinstance(data, dict) else None
+        if total_pages is not None and page >= int(total_pages):
+            break
+        if total_pages is None and len(rows) < size:
+            break
+        page += 1
+    return all_rows
+
+
+def index_to_candles(rows):
+    by_date = {}
+    latest = None
+    for r in rows:
+        d = str(r.get('businessDate') or '')[:10]
+        c = num(r.get('closingIndex'))
+        if not d or c is None:
+            continue
+        o = num(r.get('openIndex')) or c
+        h = num(r.get('highIndex')) or max(o, c)
+        l = num(r.get('lowIndex')) or min(o, c)
+        v = num(r.get('turnoverVolume')) or 0
+        by_date[d] = (o, max(h, o, c), min(l, o, c), c, v)
+        if latest is None or d > latest[0]:
+            latest = (d, r)
+
+    candles, volumes = [], []
+    for d in sorted(by_date):
+        o, h, l, c, v = by_date[d]
+        candles.append({'time': d, 'open': o, 'high': h, 'low': l, 'close': c})
+        volumes.append({
+            'time': d,
+            'value': v,
+            'color': 'rgba(34,197,94,0.5)' if c >= o else 'rgba(239,68,68,0.5)',
+        })
+    return candles, volumes, latest
+
+
+def get_index():
+    cached = cache.get('nepse_index')
+    if cached:
+        return cached
+
+    result = {'candles': [], 'volumes': [], 'latest': None}
+    try:
+        with NepseClient() as client:
+            rows = fetch_index_rows(client)
+        candles, volumes, latest = index_to_candles(rows)
+        print(f'index_history: {len(rows)} rows -> {len(candles)} candles',
+              (candles[0]['time'], candles[-1]['time']) if candles else '')
+
+        info = None
+        if latest:
+            d, r = latest
+            pct = num(r.get('percentageChange'))
+            info = {
+                'value': fmt_num(num(r.get('closingIndex'))),
+                'change': f"{pct:+.2f}%" if pct is not None else "—",
+                'up': pct is not None and pct >= 0,
+                'date': d,
+            }
+        result = {'candles': candles, 'volumes': volumes, 'latest': info}
+    except Exception:
+        print('Index fetch failed:')
+        traceback.print_exc()
+
+    if len(result['candles']) >= 2:
+        cache.set('nepse_index', result, INDEX_CACHE_SECONDS)
+        cache.set('nepse_index_stale', result, 86400)
+        return result
+    return cache.get('nepse_index_stale') or result
+
+
+def index_intraday_methods(client):
+    """Find client methods that look like the NEPSE index intraday graph."""
+    names = []
+    for n in dir(client):
+        low = n.lower()
+        if n.startswith('_') or not callable(getattr(client, n, None)):
+            continue
+        if 'index' not in low:
+            continue
+        if not any(h in low for h in ('graph', 'intraday', 'chart')):
+            continue
+        if 'history' in low:
+            continue
+        if any(s in low for s in ('sensitive', 'float', 'sub', 'sector')):
+            continue
+        names.append(n)
+
+    def rank(n):
+        low = n.lower()
+        return (0 if 'nepse' in low else 1,
+                0 if ('intraday' in low or 'daily' in low) else 1)
+
+    return sorted(names, key=rank)
+
+
+def call_index_method(client, name):
+    fn = getattr(client, name)
+    kwargs = {}
+    for p in inspect.signature(fn).parameters.values():
+        pn = p.name.lower()
+        if pn in ('index_id', 'indexid', 'index', 'id'):
+            kwargs[p.name] = INDEX_ID
+        elif p.default is p.empty and p.kind in (p.POSITIONAL_OR_KEYWORD,
+                                                  p.KEYWORD_ONLY):
+            kwargs[p.name] = INDEX_ID
+    return fn(**kwargs)
+
+
+def parse_intraday_rows(rows):
+    """Accept [time, value] pairs or dicts; return chart points in Nepal time."""
+    points, seen = [], set()
+    for r in rows or []:
+        t = v = None
+        if isinstance(r, (list, tuple)) and len(r) >= 2:
+            t, v = r[0], r[1]
+        elif isinstance(r, dict):
+            t = pick(r, 'time', 'timestamp')
+            v = pick(r, 'contractRate', 'value', 'index', 'closingIndex',
+                     'currentValue', 'close', 'closePrice')
+        t, v = num(t), num(v)
+        if t is None or v is None:
+            continue
+        if t > 1e11:       # milliseconds -> seconds
+            t = t / 1000
+        t = int(t)
+        if t in seen:
+            continue
+        seen.add(t)
+        points.append({'time': t + NEPAL_OFFSET, 'value': v})
+    points.sort(key=lambda p: p['time'])
+    return points
+
+
+def get_index_intraday():
+    cached = cache.get('nepse_index_intraday')
+    if cached is not None:
+        return cached
+
+    points = []
+    try:
+        with NepseClient() as client:
+            methods = index_intraday_methods(client)
+            print('Index intraday methods found:', methods)
+            for name in methods:
+                try:
+                    data = call_index_method(client, name)
+                    rows = extract_rows(data)
+                    print(f'{name}: {len(rows)} rows | sample:',
+                          rows[0] if rows else None)
+                    pts = parse_intraday_rows(rows)
+                    if len(pts) >= 2:
+                        points = pts
+                        print(f'Using {name}: {len(points)} intraday points')
+                        break
+                except Exception as e:
+                    print(f'{name} failed:', repr(e))
+    except Exception:
+        print('Index intraday fetch failed:')
+        traceback.print_exc()
+
+    if points:
+        cache.set('nepse_index_intraday', points, INDEX_INTRADAY_SECONDS)
+    return points
 
 
 # ---------- dashboard ----------
@@ -143,80 +342,66 @@ def get_market():
 
 @login_required
 def dashboard(request):
-    return render(request, 'market/dashboard.html', {'market': get_market()})
+    index = get_index()
+    return render(request, 'market/dashboard.html', {
+        'market': get_market(),
+        'index': index['latest'],
+        'index_candles': index['candles'],
+        'index_volumes': index['volumes'],
+        'index_intraday': get_index_intraday(),
+    })
 
 
 # ---------- company page ----------
 
-SKIP_WORDS = ('index', 'sensitive', 'float', 'sector', 'market', 'trade',
-              'floor', 'depth', 'news', 'dividend', 'agm', 'notice')
+HISTORY_CACHE_SECONDS = 3600     # daily history: 1 hour
+INTRADAY_CACHE_SECONDS = 120     # intraday: 2 minutes
 
 
-def history_methods(client):
-    """Find client methods that look like a company price history/chart."""
-    names = []
-    for n in dir(client):
-        low = n.lower()
-        if n.startswith('_') or not callable(getattr(client, n, None)):
-            continue
-        if not any(h in low for h in ('history', 'graph', 'chart')):
-            continue
-        if any(s in low for s in SKIP_WORDS):
-            continue
-        names.append(n)
+def fetch_daily_rows(client, security_id, size=500, max_pages=20):
+    """Fetch every page of a company's daily history (NEPSE paginates)."""
+    all_rows, seen, page = [], set(), 1
+    while page <= max_pages:
+        data = client.security_price_history(security_id, page=page, size=size)
+        rows = extract_rows(data)
+        if not rows:
+            break
 
-    def rank(n):
-        low = n.lower()
-        if 'price' in low and 'history' in low:
-            return 0
-        if 'history' in low:
-            return 1
-        return 2
+        new = 0
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            key = r.get('businessDate') or id(r)
+            if key not in seen:
+                seen.add(key)
+                all_rows.append(r)
+                new += 1
+        if new == 0:
+            break
 
-    return sorted(names, key=rank)
-
-
-def call_history(client, name, symbol, security_id):
-    """Call a history method, filling its parameters by name."""
-    fn = getattr(client, name)
-    end = date.today()
-    start = end - timedelta(days=365)
-    kwargs = {}
-    for p in inspect.signature(fn).parameters.values():
-        pn = p.name.lower()
-        if pn in ('symbol', 'stock_symbol', 'ticker'):
-            kwargs[p.name] = symbol
-        elif pn in ('stock_id', 'security_id', 'securityid', 'company_id',
-                    'scrip_id', 'id'):
-            kwargs[p.name] = security_id
-        elif pn in ('start_date', 'from_date', 'start', 'from_'):
-            kwargs[p.name] = start.isoformat()
-        elif pn in ('end_date', 'to_date', 'end', 'to'):
-            kwargs[p.name] = end.isoformat()
-        elif pn == 'page':
-            kwargs[p.name] = 1
-        elif pn == 'size':
-            kwargs[p.name] = 500
-        elif p.default is p.empty and p.kind in (p.POSITIONAL_OR_KEYWORD,
-                                                  p.KEYWORD_ONLY):
-            kwargs[p.name] = security_id if 'id' in pn else symbol
-    return fn(**kwargs)
+        total_pages = data.get('totalPages') if isinstance(data, dict) else None
+        if total_pages is not None and page >= int(total_pages):
+            break
+        if total_pages is None and len(rows) < size:
+            break
+        page += 1
+    return all_rows
 
 
 def to_candles(rows):
-    """Convert history rows into candlestick and volume lists."""
+    """Convert daily rows into candlestick and volume lists."""
     by_date = {}
     for r in rows:
         if not isinstance(r, dict):
             continue
-        d = pick(r, 'businessDate', 'date', 'tradeDate')
-        c = num(pick(r, 'closePrice', 'close', 'lastUpdatedPrice', 'lastTradedPrice'))
+        d = pick(r, 'businessDate', 'date')
+        c = num(pick(r, 'closePrice', 'lastTradedPrice', 'lastUpdatedPrice'))
         if not d or c is None:
             continue
-        o = num(pick(r, 'openPrice', 'open')) or c
-        h = num(pick(r, 'highPrice', 'high', 'maxPrice')) or max(o, c)
-        l = num(pick(r, 'lowPrice', 'low', 'minPrice')) or min(o, c)
-        v = num(pick(r, 'totalTradedQuantity', 'volume', 'totalTradeQuantity')) or 0
+        o = num(r.get('openPrice')) or c
+        h = num(r.get('highPrice')) or max(o, c)
+        l = num(r.get('lowPrice')) or min(o, c)
+        v = num(r.get('totalTradedQuantity')) or 0
         by_date[str(d)[:10]] = (o, max(h, o, c), min(l, o, c), c, v)
 
     candles, volumes = [], []
@@ -231,8 +416,12 @@ def to_candles(rows):
     return candles, volumes
 
 
-def get_history(symbol, security_id):
-    key = 'nepse_hist_' + ''.join(ch if ch.isalnum() else '_' for ch in symbol)
+def get_history(security_id):
+    """Daily candles for the longest range NEPSE provides (about 1 year)."""
+    if security_id is None:
+        return {'candles': [], 'volumes': []}
+
+    key = f'nepse_daily_{security_id}'
     cached = cache.get(key)
     if cached:
         return cached
@@ -240,28 +429,55 @@ def get_history(symbol, security_id):
     result = {'candles': [], 'volumes': []}
     try:
         with NepseClient() as client:
-            methods = history_methods(client)
-            print('History methods found:', methods)
-            for name in methods:
+            try:
+                rows = fetch_daily_rows(client, security_id)
+                candles, volumes = to_candles(rows)
+                print(f'security_price_history: {len(rows)} rows -> {len(candles)} candles',
+                      (candles[0]['time'], candles[-1]['time']) if candles else '')
+                result = {'candles': candles, 'volumes': volumes}
+            except Exception as e:
+                print('security_price_history failed:', repr(e))
+
+            if len(result['candles']) < 2:  # fallback source
                 try:
-                    data = call_history(client, name, symbol, security_id)
-                    rows = extract_rows(data)
-                    print(f'{name}: {len(rows)} rows | sample:',
-                          rows[0] if rows else None)
-                    candles, volumes = to_candles(rows)
-                    if len(candles) >= 2:
-                        result = {'candles': candles, 'volumes': volumes}
-                        print(f'Using {name}: {len(candles)} candles')
-                        break
+                    rows = client.company_graph(security_id)
+                    candles, volumes = to_candles(rows or [])
+                    print(f'company_graph fallback: {len(candles)} candles')
+                    result = {'candles': candles, 'volumes': volumes}
                 except Exception as e:
-                    print(f'{name} failed:', repr(e))
+                    print('company_graph failed:', repr(e))
     except Exception:
         print('History fetch failed:')
         traceback.print_exc()
 
-    if result['candles']:
-        cache.set(key, result, 600)
+    if len(result['candles']) >= 2:
+        cache.set(key, result, HISTORY_CACHE_SECONDS)
     return result
+
+
+def get_intraday(security_id):
+    """Minute-by-minute prices for the latest trading session."""
+    if security_id is None:
+        return []
+
+    key = f'nepse_intraday_{security_id}'
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    points = []
+    try:
+        with NepseClient() as client:
+            rows = client.company_graph_intraday(security_id)
+        points = parse_intraday_rows(rows)
+        print('intraday points:', len(points))
+    except Exception:
+        print('Intraday fetch failed:')
+        traceback.print_exc()
+
+    if points:
+        cache.set(key, points, INTRADAY_CACHE_SECONDS)
+    return points
 
 
 @login_required
@@ -293,11 +509,13 @@ def company_detail(request, symbol):
         'date': row.get('businessDate') or '',
     }
 
-    history = get_history(symbol, row.get('securityId'))
+    security_id = row.get('securityId')
+    history = get_history(security_id)
     return render(request, 'market/company.html', {
         'c': info,
         'candles': history['candles'],
         'volumes': history['volumes'],
+        'intraday': get_intraday(security_id),
     })
 
 

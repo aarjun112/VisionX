@@ -7,17 +7,106 @@
     <title>VisionX | Nepal Stock Market</title>
     <link rel="stylesheet" href="{% static 'market/css/style.css' %}">
     <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        /* ---------- full-window snap scrolling ---------- */
+        html, body, .main {
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+
+        .snap-section {
+            height: 100vh;
+            height: 100dvh;
+            box-sizing: border-box;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+        }
+
+        /* Section 1: market overview, content centred in the window */
+        #market.snap-section {
+            min-height: 100vh;
+            justify-content: center;
+            position: relative;
+        }
+        #market .stat { min-height: 220px; }
+        #market .stat h2 { font-size: clamp(28px, 3.2vw, 44px); }
+        #market .stats { gap: 24px; }
+
+        .scroll-hint {
+            position: absolute;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            color: #64748b;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-decoration: none;
+            animation: bob 1.8s ease-in-out infinite;
+        }
+        .scroll-hint:hover { color: #fff; }
+        @keyframes bob {
+            0%, 100% { transform: translate(-50%, 0); }
+            50%      { transform: translate(-50%, 7px); }
+        }
+
+        /* Panels that fill their window */
+        .fill-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Chart fills the rest of its window */
+        #chart-container {
+            flex: 1;
+            min-height: 300px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Tables scroll inside their own window */
+        .fill-panel .table-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+        }
+        .fill-panel .table-wrap thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #111827;
+        }
+
+        .section-foot { margin-top: 10px; }
+
+        .no-chart { padding: 40px 10px; text-align: center; color: #9CA3AF; }
+        .range-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 14px; }
+        .range-btn {
+            padding: 8px 16px; border-radius: 999px; border: 1px solid #263247;
+            background: transparent; color: #9CA3AF; font-size: 13px; font-weight: 700;
+            cursor: pointer; transition: all .15s;
+        }
+        .range-btn:hover { color: #fff; border-color: #38bdf8; }
+        .range-btn.active { background: #22C55E; border-color: #22C55E; color: #05210f; }
+        .range-info { margin-left: auto; font-size: 13px; color: #9CA3AF; text-align: right; }
+        .range-info strong { font-size: 15px; }
+        @media (max-width: 700px) { .range-info { margin-left: 0; width: 100%; text-align: left; } }
+    </style>
 </head>
 <body>
     <aside class="sidebar">
         <h2 class="logo">Vision<span>X</span></h2>
         <p class="muted">NEPAL MARKETS</p>
-        <nav>
-            <a class="active" href="/">▦ &nbsp; Dashboard</a>
-            <a href="#market">◷ &nbsp; Market Overview</a>
-            <a href="#movers">▲ &nbsp; Top Movers</a>
-            <a href="#stocks">▤ &nbsp; All Companies</a>
-            <a href="#chart">⌁ &nbsp; Charts & Analysis</a>
+        <nav id="side-nav">
+            <a class="active" href="#market" data-target="market">◷ &nbsp; Market Overview</a>
+            <a href="#chart" data-target="chart">⌁ &nbsp; NEPSE Chart</a>
+            <a href="#movers" data-target="movers">▲ &nbsp; Top Gainers</a>
+            <a href="#losers" data-target="losers">▼ &nbsp; Top Losers</a>
+            <a href="#stocks" data-target="stocks">▤ &nbsp; All Companies</a>
         </nav>
         <div class="sidebar-bottom">
             <p style="margin:0 0 10px;">Signed in as <strong>{{ user.username }}</strong></p>
@@ -29,216 +118,389 @@
     </aside>
 
     <main class="main">
-        <header class="topbar">
-            <div>
-                <p class="muted">MARKET INTELLIGENCE PLATFORM</p>
-                <h1>Market Overview</h1>
-            </div>
-            <span class="status">{% if market.connected %}● LIVE (NEPSE){% else %}● OFFLINE{% endif %}</span>
-        </header>
 
-        <section class="notice">
-            {% if market.connected %}
-                Data from NEPSE public sources (unofficial, may be delayed). Not financial advice.
-            {% else %}
-                Could not load NEPSE data right now. Try again in a minute.
-            {% endif %}
-        </section>
-
-        <section class="stats" id="market">
-            <article class="panel stat">
-                <p>NEPSE INDEX</p>
-                <h2>—</h2>
-                <span class="muted">Coming next</span>
-            </article>
-            <article class="panel stat">
-                <p>TOTAL TURNOVER</p>
-                <h2>{{ market.turnover }}</h2>
-                <span class="muted">Sum of the last session's trades</span>
-            </article>
-            <article class="panel stat">
-                <p>MARKET VOLUME</p>
-                <h2>{{ market.volume }}</h2>
-                <span class="muted">Shares traded</span>
-            </article>
-            <article class="panel stat">
-                <p>MARKET STATUS</p>
-                <h2 class="small-heading">{% if market.connected %}Connected{% else %}Not connected{% endif %}</h2>
-                <span class="muted">{{ market.total_companies }} companies tracked</span>
-            </article>
-        </section>
-
-        <section class="panel chart-panel" id="chart">
-            <div class="section-heading">
+        <!-- ========== WINDOW 1: MARKET OVERVIEW ========== -->
+        <section class="snap-section" id="market">
+            <header class="topbar">
                 <div>
-                    <p class="muted">MARKET ANALYSIS</p>
-                    <h2>NEPSE Price Chart</h2>
+                    <p class="muted">MARKET INTELLIGENCE PLATFORM</p>
+                    <h1>Market Overview</h1>
                 </div>
-                <span class="tag">SAMPLE DATA</span>
-            </div>
-            <div id="chart-container"></div>
-            <p class="muted footnote">
-                Illustrative candlestick data. Real index history will be connected next.
-            </p>
+                <span class="status">{% if market.connected %}● LIVE (NEPSE){% else %}● OFFLINE{% endif %}</span>
+            </header>
+
+            <section class="notice">
+                {% if market.connected %}
+                    Data from NEPSE public sources (unofficial, may be delayed). Not financial advice.
+                {% else %}
+                    Could not load NEPSE data right now. Try again in a minute.
+                {% endif %}
+            </section>
+
+            <section class="stats">
+                <article class="panel stat">
+                    <p>NEPSE INDEX</p>
+                    {% if index %}
+                        <h2>{{ index.value }}</h2>
+                        <span class="{% if index.up %}positive{% else %}negative{% endif %}">{{ index.change }}</span>
+                    {% else %}
+                        <h2>—</h2>
+                        <span class="muted">Not available</span>
+                    {% endif %}
+                </article>
+                <article class="panel stat">
+                    <p>TOTAL TURNOVER</p>
+                    <h2>{{ market.turnover }}</h2>
+                    <span class="muted">Sum of the last session's trades</span>
+                </article>
+                <article class="panel stat">
+                    <p>MARKET VOLUME</p>
+                    <h2>{{ market.volume }}</h2>
+                    <span class="muted">Shares traded</span>
+                </article>
+                <article class="panel stat">
+                    <p>MARKET STATUS</p>
+                    <h2 class="small-heading">{% if market.connected %}Connected{% else %}Not connected{% endif %}</h2>
+                    <span class="muted">{{ market.total_companies }} companies tracked</span>
+                </article>
+            </section>
+
+            <a class="scroll-hint" href="#chart">SCROLL ↓</a>
         </section>
 
-        <section class="panel table-panel" id="movers">
-            <div class="section-heading">
-                <div>
-                    <p class="muted">TOP MOVERS</p>
-                    <h2>Top 15 Gainers</h2>
+        <!-- ========== WINDOW 2: NEPSE CHART ========== -->
+        <section class="snap-section" id="chart">
+            <div class="panel chart-panel fill-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="muted">MARKET ANALYSIS</p>
+                        <h2>NEPSE Index Chart</h2>
+                    </div>
+                    <span class="tag" id="range-tag">ALL AVAILABLE</span>
                 </div>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>COMPANY</th>
-                            <th>SYMBOL</th>
-                            <th>LAST PRICE</th>
-                            <th>CHANGE</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in market.gainers %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
-                            <td>{{ c.price }}</td>
-                            <td class="positive">{{ c.change }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="5">No gainers found</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
 
-        <section class="panel table-panel" id="losers">
-            <div class="section-heading">
-                <div>
-                    <p class="muted">TOP MOVERS</p>
-                    <h2>Top 15 Losers</h2>
-                </div>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>COMPANY</th>
-                            <th>SYMBOL</th>
-                            <th>LAST PRICE</th>
-                            <th>CHANGE</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in market.losers %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
-                            <td>{{ c.price }}</td>
-                            <td class="negative">{{ c.change }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="5">No losers found</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="panel table-panel" id="stocks">
-            <div class="section-heading">
-                <div>
-                    <p class="muted">EQUITY SCANNER</p>
-                    <h2>All Companies ({{ market.total_companies }})</h2>
-                </div>
-                <input id="search" type="search" placeholder="Search symbol or company...">
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>COMPANY</th>
-                            <th>SYMBOL</th>
-                            <th>LAST PRICE</th>
-                            <th>CHANGE</th>
-                        </tr>
-                    </thead>
-                    <tbody id="all-rows">
-                        {% for c in market.companies %}
-                        <tr>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
-                            <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
-                            <td>{{ c.price }}</td>
-                            <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4">No data received</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                {% if index_candles %}
+                    <div class="range-bar">
+                        <button type="button" class="range-btn" data-range="1D">1D</button>
+                        <button type="button" class="range-btn" data-range="1W">1W</button>
+                        <button type="button" class="range-btn" data-range="1M">1M</button>
+                        <button type="button" class="range-btn" data-range="1Y">1Y</button>
+                        <button type="button" class="range-btn active" data-range="ALL">ALL</button>
+                        <div class="range-info" id="range-info"></div>
+                    </div>
+                    <div id="chart-container"></div>
+                {% else %}
+                    <div class="no-chart">
+                        NEPSE index history could not be loaded right now. Try again in a minute.
+                    </div>
+                {% endif %}
+                <p class="muted footnote">
+                    1D shows the latest session minute by minute (Nepal time) when NEPSE provides it.
+                    Other ranges use daily candles. NEPSE provides about the last year.
+                    Unofficial data, may be delayed.
+                </p>
             </div>
         </section>
 
-        <footer>VisionX · Built for Nepal's stock market · Development preview</footer>
+        <!-- ========== WINDOW 3: TOP GAINERS ========== -->
+        <section class="snap-section" id="movers">
+            <div class="panel table-panel fill-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="muted">TOP MOVERS</p>
+                        <h2>Top 15 Gainers</h2>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>COMPANY</th>
+                                <th>SYMBOL</th>
+                                <th>LAST PRICE</th>
+                                <th>CHANGE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in market.gainers %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                                <td>{{ c.price }}</td>
+                                <td class="positive">{{ c.change }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5">No gainers found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== WINDOW 4: TOP LOSERS ========== -->
+        <section class="snap-section" id="losers">
+            <div class="panel table-panel fill-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="muted">TOP MOVERS</p>
+                        <h2>Top 15 Losers</h2>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>COMPANY</th>
+                                <th>SYMBOL</th>
+                                <th>LAST PRICE</th>
+                                <th>CHANGE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in market.losers %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                                <td>{{ c.price }}</td>
+                                <td class="negative">{{ c.change }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5">No losers found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== WINDOW 5: ALL COMPANIES ========== -->
+        <section class="snap-section" id="stocks">
+            <div class="panel table-panel fill-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="muted">EQUITY SCANNER</p>
+                        <h2>All Companies ({{ market.total_companies }})</h2>
+                    </div>
+                    <input id="search" type="search" placeholder="Search symbol or company...">
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>COMPANY</th>
+                                <th>SYMBOL</th>
+                                <th>LAST PRICE</th>
+                                <th>CHANGE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-rows">
+                            {% for c in market.companies %}
+                            <tr>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
+                                <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                                <td>{{ c.price }}</td>
+                                <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4">No data received</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <footer class="section-foot">VisionX · Built for Nepal's stock market · Development preview</footer>
+        </section>
+
     </main>
 
+    {{ index_candles|json_script:"idx-candles" }}
+    {{ index_volumes|json_script:"idx-volumes" }}
+    {{ index_intraday|json_script:"idx-intraday" }}
+
     <script>
+        // ---------- sidebar highlights the window you are in ----------
+        const navLinks = document.querySelectorAll("#side-nav a");
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    navLinks.forEach(a => {
+                        a.classList.toggle("active", a.dataset.target === entry.target.id);
+                    });
+                }
+            });
+        }, { threshold: 0.55 });
+        document.querySelectorAll(".snap-section").forEach(s => observer.observe(s));
+
+        // ---------- NEPSE index chart ----------
         const container = document.getElementById("chart-container");
+        const allCandles = JSON.parse(document.getElementById("idx-candles").textContent);
+        const allVolumes = JSON.parse(document.getElementById("idx-volumes").textContent);
+        const intraday = JSON.parse(document.getElementById("idx-intraday").textContent);
 
-        if (window.LightweightCharts && container) {
-            const chart = LightweightCharts.createChart(container, {
-                width: container.clientWidth,
-                height: 330,
-                layout: {
-                    background: { color: "#111827" },
-                    textColor: "#9CA3AF"
-                },
-                grid: {
-                    vertLines: { color: "#202B3D" },
-                    horzLines: { color: "#202B3D" }
-                },
-                rightPriceScale: { borderColor: "#263247" },
-                timeScale: { borderColor: "#263247" }
+        if (window.LightweightCharts && container && allCandles.length) {
+            let chart = null;
+            let mode = null;          // "daily" or "intraday"
+            const series = {};
+
+            function size() {
+                return {
+                    width: container.clientWidth,
+                    height: Math.max(container.clientHeight, 300)
+                };
+            }
+
+            function buildChart(newMode) {
+                if (chart && mode === newMode) return;
+                if (chart) { chart.remove(); }
+                mode = newMode;
+
+                const s = size();
+                chart = LightweightCharts.createChart(container, {
+                    width: s.width,
+                    height: s.height,
+                    layout: { background: { color: "#111827" }, textColor: "#9CA3AF" },
+                    grid: {
+                        vertLines: { color: "#202B3D" },
+                        horzLines: { color: "#202B3D" }
+                    },
+                    rightPriceScale: { borderColor: "#263247" },
+                    timeScale: {
+                        borderColor: "#263247",
+                        timeVisible: newMode === "intraday",
+                        secondsVisible: false
+                    }
+                });
+
+                if (newMode === "intraday") {
+                    series.area = chart.addAreaSeries({
+                        lineColor: "#22C55E",
+                        topColor: "rgba(34,197,94,0.35)",
+                        bottomColor: "rgba(34,197,94,0.02)",
+                        lineWidth: 2
+                    });
+                } else {
+                    series.candles = chart.addCandlestickSeries({
+                        upColor: "#22C55E",
+                        downColor: "#EF4444",
+                        borderVisible: false,
+                        wickUpColor: "#22C55E",
+                        wickDownColor: "#EF4444"
+                    });
+                    series.volume = chart.addHistogramSeries({
+                        priceFormat: { type: "volume" },
+                        priceScaleId: ""
+                    });
+                    series.volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+                }
+            }
+
+            const DAYS = { "1W": 7, "1M": 30, "1Y": 365 };
+            const LABELS = {
+                "1D": "LAST 2 SESSIONS", "1W": "LAST 7 DAYS", "1M": "LAST 30 DAYS",
+                "1Y": "LAST 12 MONTHS", "ALL": "ALL AVAILABLE"
+            };
+            const lastDate = allCandles[allCandles.length - 1].time;
+
+            function cutoffFor(days) {
+                const d = new Date(lastDate + "T00:00:00Z");
+                d.setUTCDate(d.getUTCDate() - days);
+                return d.toISOString().slice(0, 10);
+            }
+
+            function fmt(n) {
+                return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            function setInfo(html) {
+                document.getElementById("range-info").innerHTML = html;
+            }
+
+            function changeHtml(pct) {
+                const cls = pct >= 0 ? "positive" : "negative";
+                return "<strong class='" + cls + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%</strong>";
+            }
+
+            function renderIntraday() {
+                buildChart("intraday");
+                series.area.setData(intraday);
+                chart.timeScale().fitContent();
+
+                const first = intraday[0].value;
+                const last = intraday[intraday.length - 1].value;
+                const pct = first ? ((last - first) / first) * 100 : 0;
+                const vals = intraday.map(p => p.value);
+                const day = new Date(intraday[intraday.length - 1].time * 1000).toISOString().slice(0, 10);
+
+                document.getElementById("range-tag").textContent = "SESSION " + day;
+                setInfo(
+                    intraday.length + " price points · " + day + " (Nepal time)" +
+                    "<br>Session change: " + changeHtml(pct) +
+                    " · High " + fmt(Math.max(...vals)) +
+                    " · Low " + fmt(Math.min(...vals))
+                );
+            }
+
+            function renderDaily(range) {
+                buildChart("daily");
+
+                let c, v;
+                if (range === "ALL") {
+                    c = allCandles; v = allVolumes;
+                } else if (range === "1D") {
+                    c = allCandles.slice(-2); v = allVolumes.slice(-2);
+                } else {
+                    const cut = cutoffFor(DAYS[range]);
+                    c = allCandles.filter(x => x.time >= cut);
+                    v = allVolumes.filter(x => x.time >= cut);
+                }
+                if (!c.length) { c = allCandles.slice(-2); v = allVolumes.slice(-2); }
+
+                series.candles.setData(c);
+                series.volume.setData(v);
+                chart.timeScale().fitContent();
+
+                const first = c[0], last = c[c.length - 1];
+                const base = first.open || first.close;
+                const pct = base ? ((last.close - base) / base) * 100 : 0;
+
+                document.getElementById("range-tag").textContent = LABELS[range];
+                setInfo(
+                    c.length + " sessions · " + first.time + " → " + last.time +
+                    "<br>Range change: " + changeHtml(pct) +
+                    " · High " + fmt(Math.max(...c.map(x => x.high))) +
+                    " · Low " + fmt(Math.min(...c.map(x => x.low)))
+                );
+            }
+
+            function render(range) {
+                if (range === "1D" && intraday.length >= 2) {
+                    renderIntraday();
+                } else {
+                    renderDaily(range);
+                }
+                document.querySelectorAll(".range-btn").forEach(b => {
+                    b.classList.toggle("active", b.dataset.range === range);
+                });
+            }
+
+            document.querySelectorAll(".range-btn").forEach(btn => {
+                btn.addEventListener("click", () => render(btn.dataset.range));
             });
 
-            const candles = chart.addCandlestickSeries({
-                upColor: "#22C55E",
-                downColor: "#EF4444",
-                borderVisible: false,
-                wickUpColor: "#22C55E",
-                wickDownColor: "#EF4444"
-            });
+            render("ALL");
 
-            candles.setData([
-                {time:"2026-09-01",open:2500,high:2530,low:2480,close:2518},
-                {time:"2026-09-02",open:2518,high:2550,low:2505,close:2540},
-                {time:"2026-09-03",open:2540,high:2560,low:2510,close:2522},
-                {time:"2026-09-04",open:2522,high:2545,low:2495,close:2508},
-                {time:"2026-09-07",open:2508,high:2555,low:2500,close:2548},
-                {time:"2026-09-08",open:2548,high:2580,low:2530,close:2565},
-                {time:"2026-09-09",open:2565,high:2575,low:2525,close:2538},
-                {time:"2026-09-10",open:2538,high:2560,low:2520,close:2550},
-                {time:"2026-09-11",open:2550,high:2600,low:2540,close:2588},
-                {time:"2026-09-14",open:2588,high:2610,low:2560,close:2595},
-                {time:"2026-09-15",open:2595,high:2620,low:2570,close:2608},
-                {time:"2026-09-16",open:2608,high:2630,low:2580,close:2615}
-            ]);
-
-            chart.timeScale().fitContent();
-
+            // keep the chart filling its window when the browser is resized
             new ResizeObserver(() => {
-                chart.applyOptions({width: container.clientWidth});
+                if (chart) chart.applyOptions(size());
             }).observe(container);
         }
 
-        // Search filters the All Companies table
+        // ---------- search in All Companies ----------
         document.getElementById("search").addEventListener("input", function () {
             const query = this.value.toLowerCase();
             document.querySelectorAll("#all-rows tr").forEach(row => {
