@@ -1,0 +1,275 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ c.symbol }} | VisionX</title>
+    <link rel="stylesheet" href="{% static 'market/css/style.css' %}">
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        .back-link { color: #9CA3AF; text-decoration: none; font-size: 14px; }
+        .back-link:hover { color: #fff; }
+        .detail-price { font-size: 34px; margin: 6px 0 0; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 18px; }
+        .detail-grid div { background: #0f172a; border: 1px solid #202B3D; border-radius: 10px; padding: 12px 14px; }
+        .detail-grid p { margin: 0 0 4px; font-size: 12px; color: #9CA3AF; }
+        .detail-grid strong { font-size: 16px; }
+        .no-chart { padding: 40px 10px; text-align: center; color: #9CA3AF; }
+
+        .range-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 14px; }
+        .range-btn {
+            padding: 8px 16px; border-radius: 999px; border: 1px solid #263247;
+            background: transparent; color: #9CA3AF; font-size: 13px; font-weight: 700;
+            cursor: pointer; transition: all .15s;
+        }
+        .range-btn:hover { color: #fff; border-color: #38bdf8; }
+        .range-btn.active { background: #22C55E; border-color: #22C55E; color: #05210f; }
+        .range-info { margin-left: auto; font-size: 13px; color: #9CA3AF; text-align: right; }
+        .range-info strong { font-size: 15px; }
+        @media (max-width: 700px) { .range-info { margin-left: 0; width: 100%; text-align: left; } }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h2 class="logo">Vision<span>X</span></h2>
+        <p class="muted">NEPAL MARKETS</p>
+        <nav>
+            <a href="/">▦ &nbsp; Dashboard</a>
+            <a class="active" href="#">⌁ &nbsp; {{ c.symbol }}</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <p style="margin:0 0 10px;">Signed in as <strong>{{ user.username }}</strong></p>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">Log out</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <a class="back-link" href="/">← Back to dashboard</a>
+                <p class="muted" style="margin-top:14px;">{{ c.symbol }}</p>
+                <h1>{{ c.name }}</h1>
+            </div>
+            <span class="status">● NEPSE · {{ c.date }}</span>
+        </header>
+
+        <section class="panel">
+            <p class="muted">LAST PRICE (Rs.)</p>
+            <h2 class="detail-price">
+                {{ c.price }}
+                <span class="{% if c.up %}positive{% else %}negative{% endif %}" style="font-size:18px;">{{ c.change }}</span>
+            </h2>
+            <div class="detail-grid">
+                <div><p>OPEN</p><strong>{{ c.open }}</strong></div>
+                <div><p>HIGH</p><strong>{{ c.high }}</strong></div>
+                <div><p>LOW</p><strong>{{ c.low }}</strong></div>
+                <div><p>PREV. CLOSE</p><strong>{{ c.prev }}</strong></div>
+                <div><p>52-WEEK HIGH</p><strong>{{ c.high52 }}</strong></div>
+                <div><p>52-WEEK LOW</p><strong>{{ c.low52 }}</strong></div>
+                <div><p>VOLUME</p><strong>{{ c.volume }}</strong></div>
+                <div><p>TURNOVER</p><strong>{{ c.turnover }}</strong></div>
+                <div><p>TRADES</p><strong>{{ c.trades }}</strong></div>
+            </div>
+        </section>
+
+        <section class="panel chart-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="muted">PRICE HISTORY</p>
+                    <h2>{{ c.symbol }} Chart</h2>
+                </div>
+                <span class="tag" id="range-tag">ALL TIME</span>
+            </div>
+
+            {% if candles %}
+                <div class="range-bar" id="range-bar">
+                    <button type="button" class="range-btn" data-range="1D">1D</button>
+                    <button type="button" class="range-btn" data-range="1W">1W</button>
+                    <button type="button" class="range-btn" data-range="1M">1M</button>
+                    <button type="button" class="range-btn" data-range="1Y">1Y</button>
+                    <button type="button" class="range-btn active" data-range="ALL">ALL</button>
+                    <div class="range-info" id="range-info"></div>
+                </div>
+                <div id="chart-container"></div>
+            {% else %}
+                <div class="no-chart">
+                    Price history could not be loaded for {{ c.symbol }} right now.
+                    Try again in a minute.
+                </div>
+            {% endif %}
+            <p class="muted footnote">
+                1D shows the latest session minute by minute (Nepal time). Other ranges use daily candles.
+                NEPSE's public data covers about the last year, so ALL shows that full period.
+                Unofficial data, may be delayed. Not financial advice.
+            </p>
+        </section>
+
+        <footer>VisionX · Built for Nepal's stock market · Development preview</footer>
+    </main>
+
+    {{ candles|json_script:"candles-data" }}
+    {{ volumes|json_script:"volumes-data" }}
+    {{ intraday|json_script:"intraday-data" }}
+
+    <script>
+        const container = document.getElementById("chart-container");
+        const allCandles = JSON.parse(document.getElementById("candles-data").textContent);
+        const allVolumes = JSON.parse(document.getElementById("volumes-data").textContent);
+        const intraday = JSON.parse(document.getElementById("intraday-data").textContent);
+
+        if (window.LightweightCharts && container && allCandles.length) {
+            let chart = null;
+            let mode = null;          // "daily" or "intraday"
+            const series = {};
+
+            function buildChart(newMode) {
+                if (chart && mode === newMode) return;
+                if (chart) { chart.remove(); }
+                mode = newMode;
+
+                chart = LightweightCharts.createChart(container, {
+                    width: container.clientWidth,
+                    height: 420,
+                    layout: { background: { color: "#111827" }, textColor: "#9CA3AF" },
+                    grid: {
+                        vertLines: { color: "#202B3D" },
+                        horzLines: { color: "#202B3D" }
+                    },
+                    rightPriceScale: { borderColor: "#263247" },
+                    timeScale: {
+                        borderColor: "#263247",
+                        timeVisible: newMode === "intraday",
+                        secondsVisible: false
+                    }
+                });
+
+                if (newMode === "intraday") {
+                    series.area = chart.addAreaSeries({
+                        lineColor: "#22C55E",
+                        topColor: "rgba(34,197,94,0.35)",
+                        bottomColor: "rgba(34,197,94,0.02)",
+                        lineWidth: 2
+                    });
+                } else {
+                    series.candles = chart.addCandlestickSeries({
+                        upColor: "#22C55E",
+                        downColor: "#EF4444",
+                        borderVisible: false,
+                        wickUpColor: "#22C55E",
+                        wickDownColor: "#EF4444"
+                    });
+                    series.volume = chart.addHistogramSeries({
+                        priceFormat: { type: "volume" },
+                        priceScaleId: ""
+                    });
+                    series.volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+                }
+            }
+
+            const DAYS = { "1W": 7, "1M": 30, "1Y": 365 };
+            const LABELS = {
+                "1W": "LAST 7 DAYS", "1M": "LAST 30 DAYS",
+                "1Y": "LAST 12 MONTHS", "ALL": "ALL AVAILABLE"
+            };
+            const lastDate = allCandles[allCandles.length - 1].time;
+
+            function cutoffFor(days) {
+                const d = new Date(lastDate + "T00:00:00Z");
+                d.setUTCDate(d.getUTCDate() - days);
+                return d.toISOString().slice(0, 10);
+            }
+
+            function fmt(n) {
+                return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            function setInfo(html) {
+                document.getElementById("range-info").innerHTML = html;
+            }
+
+            function changeHtml(pct) {
+                const cls = pct >= 0 ? "positive" : "negative";
+                return "<strong class='" + cls + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%</strong>";
+            }
+
+            function renderIntraday() {
+                buildChart("intraday");
+                series.area.setData(intraday);
+                chart.timeScale().fitContent();
+
+                const first = intraday[0].value;
+                const last = intraday[intraday.length - 1].value;
+                const pct = first ? ((last - first) / first) * 100 : 0;
+                const vals = intraday.map(p => p.value);
+                const day = new Date(intraday[intraday.length - 1].time * 1000).toISOString().slice(0, 10);
+
+                document.getElementById("range-tag").textContent = "SESSION " + day;
+                setInfo(
+                    intraday.length + " price points · " + day + " (Nepal time)" +
+                    "<br>Session change: " + changeHtml(pct) +
+                    " · High " + fmt(Math.max(...vals)) +
+                    " · Low " + fmt(Math.min(...vals))
+                );
+            }
+
+            function renderDaily(range) {
+                buildChart("daily");
+
+                let c, v;
+                if (range === "ALL") {
+                    c = allCandles; v = allVolumes;
+                } else if (range === "1D") {
+                    // no intraday data available: show the last two sessions
+                    c = allCandles.slice(-2); v = allVolumes.slice(-2);
+                } else {
+                    const cut = cutoffFor(DAYS[range]);
+                    c = allCandles.filter(x => x.time >= cut);
+                    v = allVolumes.filter(x => x.time >= cut);
+                }
+                if (!c.length) { c = allCandles.slice(-2); v = allVolumes.slice(-2); }
+
+                series.candles.setData(c);
+                series.volume.setData(v);
+                chart.timeScale().fitContent();
+
+                const first = c[0], last = c[c.length - 1];
+                const base = first.open || first.close;
+                const pct = base ? ((last.close - base) / base) * 100 : 0;
+
+                document.getElementById("range-tag").textContent = LABELS[range] || "LAST SESSIONS";
+                setInfo(
+                    c.length + " sessions · " + first.time + " → " + last.time +
+                    "<br>Range change: " + changeHtml(pct) +
+                    " · High " + fmt(Math.max(...c.map(x => x.high))) +
+                    " · Low " + fmt(Math.min(...c.map(x => x.low)))
+                );
+            }
+
+            function render(range) {
+                if (range === "1D" && intraday.length >= 2) {
+                    renderIntraday();
+                } else {
+                    renderDaily(range);
+                }
+                document.querySelectorAll(".range-btn").forEach(b => {
+                    b.classList.toggle("active", b.dataset.range === range);
+                });
+            }
+
+            document.querySelectorAll(".range-btn").forEach(btn => {
+                btn.addEventListener("click", () => render(btn.dataset.range));
+            });
+
+            render("ALL");
+
+            new ResizeObserver(() => {
+                if (chart) chart.applyOptions({ width: container.clientWidth });
+            }).observe(container);
+        }
+    </script>
+</body>
+</html>
