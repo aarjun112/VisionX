@@ -1,0 +1,167 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Movers | VisionX</title>
+    <link rel="stylesheet" href="{% static 'market/css/style.css' %}">
+    <style>
+        .movers-page {
+            height: 100vh;
+            height: 100dvh;
+            box-sizing: border-box;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .movers-grid {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 8px;
+        }
+
+        .mover-panel {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .mover-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .mover-title h2 { margin: 0; font-size: 22px; }
+        .mover-badge {
+            width: 34px; height: 34px;
+            display: grid; place-items: center;
+            border-radius: 10px;
+            font-size: 15px; font-weight: 800;
+        }
+        .mover-badge.up   { background: rgba(34,197,94,.15);  color: #22C55E; }
+        .mover-badge.down { background: rgba(239,68,68,.15);  color: #EF4444; }
+
+        .mover-panel .table-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+        }
+        .mover-panel table { width: 100%; }
+        .mover-panel thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #111827;
+        }
+        .mover-panel th:not(:first-child),
+        .mover-panel td:not(:first-child) { text-align: right; }
+
+        .empty-row { text-align: center !important; color: #9CA3AF; padding: 24px 0; }
+
+        @media (max-width: 900px) {
+            .movers-page { height: auto; }
+            .movers-grid { grid-template-columns: 1fr; }
+            .mover-panel { max-height: 70vh; }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h2 class="logo">Vision<span>X</span></h2>
+        <p class="muted">NEPAL MARKETS</p>
+        <nav>
+            <a href="{% url 'dashboard' %}">◷ &nbsp; Dashboard</a>
+            <a class="active" href="{% url 'movers' %}">▲ &nbsp; Top Movers</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <p style="margin:0 0 10px;">Signed in as <strong>{{ user.username }}</strong></p>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">Log out</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="movers-page">
+            <header class="topbar">
+                <div>
+                    <p class="muted">MARKET INTELLIGENCE PLATFORM</p>
+                    <h1>Top Movers</h1>
+                </div>
+                <span class="status">{% if market.connected %}● LIVE (NEPSE){% else %}● OFFLINE{% endif %}</span>
+            </header>
+
+            <div class="movers-grid">
+
+                <!-- LEFT: GAINERS -->
+                <section class="panel table-panel mover-panel">
+                    <div class="mover-title">
+                        <span class="mover-badge up">▲</span>
+                        <h2>Top Gainers</h2>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>LAST PRICE</th>
+                                    <th>CHANGE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in market.gainers %}
+                                <tr>
+                                    <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                                    <td>{{ c.price }}</td>
+                                    <td class="positive">{{ c.change }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="empty-row">No gainers found</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- RIGHT: LOSERS -->
+                <section class="panel table-panel mover-panel">
+                    <div class="mover-title">
+                        <span class="mover-badge down">▼</span>
+                        <h2>Top Losers</h2>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>LAST PRICE</th>
+                                    <th>CHANGE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in market.losers %}
+                                <tr>
+                                    <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
+                                    <td>{{ c.price }}</td>
+                                    <td class="negative">{{ c.change }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="empty-row">No losers found</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+</body>
+</html>

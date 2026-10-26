@@ -533,3 +533,8 @@ def signup(request):
     else:
         form = SignUpForm()
     return render(request, 'market/signup.html', {'form': form})
+
+
+@login_required
+def movers(request):
+    return render(request, 'market/movers.html', {'market': get_market()})
