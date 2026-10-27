@@ -1,4 +1,4 @@
-open virtual environment
+open virtual env
 .\venv\Scripts\Activate.ps1
 
 python -m pip install django nepsepy
