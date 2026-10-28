@@ -342,8 +342,7 @@
                     <p>NEPSE INDEX</p>
                     {% if index %}
                         <h2>{{ index.value }}</h2>
-                        <span class="{% if index.up %}positive{% else %}negative{% endif %}">{{ index.change }}</span>
-                    {% else %}
+                        <span class="{% if index.up %}positive{% else %}negative{% endif %}">{{ index.change_pts }} ({{ index.change }})</span>                    {% else %}
                         <h2>—</h2>
                         <span class="muted">Not available</span>
                     {% endif %}
@@ -387,7 +386,7 @@
                             <a class="b-symbol symbol-link" href="{% url 'company' g.symbol %}">{{ g.symbol }}</a>
                             <span class="b-name">{{ g.name }}</span>
                             <div class="b-price">{{ g.price }}</div>
-                            <span class="b-change positive">{{ g.change }}</span>
+                            <span class="b-change positive">{{ g.change_pts }} ({{ g.change }})</span>
                         {% else %}
                             <span class="muted">No data</span>
                         {% endif %}
@@ -401,7 +400,7 @@
                             <a class="b-symbol symbol-link" href="{% url 'company' l.symbol %}">{{ l.symbol }}</a>
                             <span class="b-name">{{ l.name }}</span>
                             <div class="b-price">{{ l.price }}</div>
-                            <span class="b-change negative">{{ l.change }}</span>
+                            <span class="b-change negative">{{ l.change_pts }} ({{ l.change }})</span>
                         {% else %}
                             <span class="muted">No data</span>
                         {% endif %}
@@ -477,7 +476,7 @@
                                 <tr>
                                     <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
                                     <td>{{ c.price }}</td>
-                                    <td class="positive">{{ c.change }}</td>
+                                    <td class="positive">{{ c.change_pts }} ({{ c.change }})</td>
                                 </tr>
                                 {% empty %}
                                 <tr><td colspan="3" class="empty-row">No gainers found</td></tr>
@@ -507,7 +506,7 @@
                                 <tr>
                                     <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
                                     <td>{{ c.price }}</td>
-                                    <td class="negative">{{ c.change }}</td>
+                                    <td class="negative">{{ c.change_pts }} ({{ c.change }})</td>
                                 </tr>
                                 {% empty %}
                                 <tr><td colspan="3" class="empty-row">No losers found</td></tr>
@@ -546,7 +545,7 @@
                                 <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.name }}</a></td>
                                 <td><a class="symbol-link" href="{% url 'company' c.symbol %}">{{ c.symbol }}</a></td>
                                 <td>{{ c.price }}</td>
-                                <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change }}</td>
+                                <td class="{% if c.up %}positive{% else %}negative{% endif %}">{{ c.change_pts }} ({{ c.change }})</td>
                             </tr>
                             {% empty %}
                             <tr><td colspan="4">No data received</td></tr>
@@ -681,7 +680,7 @@
                         price.textContent = c.price;
                         const change = document.createElement("div");
                         change.className = "si-change " + (c.up ? "positive" : "negative");
-                        change.textContent = c.change;
+                        change.textContent = c.change_pts + " (" + c.change + ")";
                         right.appendChild(price);
                         right.appendChild(change);
 
@@ -841,7 +840,7 @@
                 document.getElementById("range-tag").textContent = "SESSION " + day;
                 setInfo(
                     intraday.length + " price points · " + day + " (Nepal time)" +
-                    "<br>Session change: " + changeHtml(pct) +
+                    "<br>Session change: " + changeHtml(last - first, pct) +
                     " · High " + fmt(Math.max(...vals)) +
                     " · Low " + fmt(Math.min(...vals))
                 );
@@ -873,7 +872,7 @@
                 document.getElementById("range-tag").textContent = LABELS[range];
                 setInfo(
                     c.length + " sessions · " + first.time + " → " + last.time +
-                    "<br>Range change: " + changeHtml(pct) +
+                    "<br>Range change: " + changeHtml(last.close - base, pct) +
                     " · High " + fmt(Math.max(...c.map(x => x.high))) +
                     " · Low " + fmt(Math.min(...c.map(x => x.low)))
                 );

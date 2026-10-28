@@ -61,8 +61,7 @@
             <p class="muted">LAST PRICE (Rs.)</p>
             <h2 class="detail-price">
                 {{ c.price }}
-                <span class="{% if c.up %}positive{% else %}negative{% endif %}" style="font-size:18px;">{{ c.change }}</span>
-            </h2>
+                <span class="{% if c.up %}positive{% else %}negative{% endif %}" style="font-size:18px;">{{ c.change_pts }} ({{ c.change }})</span>            </h2>
             <div class="detail-grid">
                 <div><p>OPEN</p><strong>{{ c.open }}</strong></div>
                 <div><p>HIGH</p><strong>{{ c.high }}</strong></div>
@@ -191,9 +190,10 @@
                 document.getElementById("range-info").innerHTML = html;
             }
 
-            function changeHtml(pct) {
-                const cls = pct >= 0 ? "positive" : "negative";
-                return "<strong class='" + cls + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%</strong>";
+            function changeHtml(pts, pct) {
+                const cls = pts >= 0 ? "positive" : "negative";
+                const sign = pts >= 0 ? "+" : "";
+                return "<strong class='" + cls + "'>" + sign + fmt(pts) + " pts (" + sign + pct.toFixed(2) + "%)</strong>";
             }
 
             function renderIntraday() {
@@ -210,7 +210,7 @@
                 document.getElementById("range-tag").textContent = "SESSION " + day;
                 setInfo(
                     intraday.length + " price points · " + day + " (Nepal time)" +
-                    "<br>Session change: " + changeHtml(pct) +
+                    "<br>Session change: " + changeHtml(last - first, pct) +
                     " · High " + fmt(Math.max(...vals)) +
                     " · Low " + fmt(Math.min(...vals))
                 );
@@ -243,7 +243,7 @@
                 document.getElementById("range-tag").textContent = LABELS[range] || "LAST SESSIONS";
                 setInfo(
                     c.length + " sessions · " + first.time + " → " + last.time +
-                    "<br>Range change: " + changeHtml(pct) +
+                    "<br>Range change: " + changeHtml(last.close - base, pct) +
                     " · High " + fmt(Math.max(...c.map(x => x.high))) +
                     " · Low " + fmt(Math.min(...c.map(x => x.low)))
                 );

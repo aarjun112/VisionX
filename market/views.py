@@ -158,9 +158,11 @@ def get_index():
         if latest:
             d, r = latest
             pct = num(r.get('percentageChange'))
+            pts = num(r.get('absChange'))
             info = {
                 'value': fmt_num(num(r.get('closingIndex'))),
                 'change': f"{pct:+.2f}%" if pct is not None else "—",
+                'change_pts': f"{pts:+,.2f}" if pts is not None else "—",
                 'up': pct is not None and pct >= 0,
                 'date': d,
             }
@@ -298,9 +300,12 @@ def load_market():
     for symbol, r in rows.items():
         price = num(pick(r, 'lastUpdatedPrice', 'lastTradedPrice', 'closePrice'))
         prev = num(pick(r, 'previousDayClosePrice', 'previousClose'))
+        
         change = None
+        pts = None
         if price is not None and prev:
             change = (price - prev) / prev * 100
+            pts = price - prev
 
         turnover += num(r.get('totalTradedValue')) or 0
         volume += num(r.get('totalTradedQuantity')) or 0
@@ -311,6 +316,7 @@ def load_market():
             'price': fmt_num(price),
             'change': f"{change:+.2f}%" if change is not None else "—",
             'change_val': change,
+            'change_pts': f"{pts:+,.2f}" if pts is not None else "—",
             'up': change is not None and change >= 0,
         })
 
@@ -490,12 +496,14 @@ def company_detail(request, symbol):
     price = num(pick(row, 'lastUpdatedPrice', 'lastTradedPrice', 'closePrice'))
     prev = num(pick(row, 'previousDayClosePrice', 'previousClose'))
     change = (price - prev) / prev * 100 if price is not None and prev else None
+    pts = price - prev if price is not None and prev else None
 
     info = {
         'symbol': symbol,
         'name': pick(row, 'securityName', 'companyName') or symbol,
         'price': fmt_num(price),
         'change': f"{change:+.2f}%" if change is not None else "—",
+        'change_pts': f"{pts:+,.2f}" if pts is not None else "—",
         'up': change is not None and change >= 0,
         'open': fmt_num(num(row.get('openPrice'))),
         'high': fmt_num(num(row.get('highPrice'))),
