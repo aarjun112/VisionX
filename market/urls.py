@@ -11,6 +11,4 @@ urlpatterns = [
         redirect_authenticated_user=True,
     ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-
-    path('movers/', views.movers, name='movers'),
 ]

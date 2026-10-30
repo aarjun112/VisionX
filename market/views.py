@@ -10,6 +10,7 @@ from django.shortcuts import redirect, render
 from nepsepy import NepseClient
 
 from .forms import SignUpForm
+from .models import DailyBar
 
 
 # ---------- helpers ----------
@@ -51,6 +52,58 @@ def extract_rows(data):
 
 
 NEPAL_OFFSET = 5 * 3600 + 45 * 60  # chart shows UTC, so shift to Nepal time (UTC+5:45)
+
+
+# ---------- stored history (database) ----------
+
+INDEX_SYMBOL = 'INDEX:NEPSE'
+
+
+def save_bars(symbol, candles, volumes):
+    """Save daily candles to the database (insert new days, update existing ones)."""
+    if not candles:
+        return
+    vol_by_date = {v['time']: v['value'] for v in volumes}
+    bars = []
+    for c in candles:
+        try:
+            d = date.fromisoformat(c['time'])
+        except (ValueError, TypeError):
+            continue
+        bars.append(DailyBar(
+            symbol=symbol, date=d,
+            open=c['open'], high=c['high'], low=c['low'], close=c['close'],
+            volume=vol_by_date.get(c['time'], 0),
+        ))
+    try:
+        DailyBar.objects.bulk_create(
+            bars, batch_size=500,
+            update_conflicts=True,
+            unique_fields=['symbol', 'date'],
+            update_fields=['open', 'high', 'low', 'close', 'volume'],
+        )
+    except Exception:
+        print('Saving history failed (did you run makemigrations and migrate?):')
+        traceback.print_exc()
+
+
+def load_bars(symbol):
+    """Load every stored day for a symbol, oldest first."""
+    candles, volumes = [], []
+    try:
+        for b in DailyBar.objects.filter(symbol=symbol).order_by('date'):
+            d = b.date.isoformat()
+            candles.append({'time': d, 'open': b.open, 'high': b.high,
+                            'low': b.low, 'close': b.close})
+            volumes.append({
+                'time': d,
+                'value': b.volume,
+                'color': 'rgba(34,197,94,0.5)' if b.close >= b.open else 'rgba(239,68,68,0.5)',
+            })
+    except Exception:
+        print('Loading stored history failed:')
+        traceback.print_exc()
+    return {'candles': candles, 'volumes': volumes}
 
 
 # ---------- today's prices (shared by dashboard and company page) ----------
@@ -154,6 +207,12 @@ def get_index():
         print(f'index_history: {len(rows)} rows -> {len(candles)} candles',
               (candles[0]['time'], candles[-1]['time']) if candles else '')
 
+        # keep growing the stored index history, and chart everything stored
+        save_bars(INDEX_SYMBOL, candles, volumes)
+        stored = load_bars(INDEX_SYMBOL)
+        if len(stored['candles']) > len(candles):
+            candles, volumes = stored['candles'], stored['volumes']
+
         info = None
         if latest:
             d, r = latest
@@ -170,6 +229,10 @@ def get_index():
     except Exception:
         print('Index fetch failed:')
         traceback.print_exc()
+        stored = load_bars(INDEX_SYMBOL)        # still show what we saved earlier
+        if stored['candles']:
+            result['candles'] = stored['candles']
+            result['volumes'] = stored['volumes']
 
     if len(result['candles']) >= 2:
         cache.set('nepse_index', result, INDEX_CACHE_SECONDS)
@@ -300,7 +363,6 @@ def load_market():
     for symbol, r in rows.items():
         price = num(pick(r, 'lastUpdatedPrice', 'lastTradedPrice', 'closePrice'))
         prev = num(pick(r, 'previousDayClosePrice', 'previousClose'))
-        
         change = None
         pts = None
         if price is not None and prev:
@@ -360,8 +422,9 @@ def dashboard(request):
 
 # ---------- company page ----------
 
-HISTORY_CACHE_SECONDS = 3600     # daily history: 1 hour
+HISTORY_CACHE_SECONDS = 3600     # daily history from NEPSE: 1 hour
 INTRADAY_CACHE_SECONDS = 120     # intraday: 2 minutes
+SAVE_THROTTLE_SECONDS = 120      # save to the database at most every 2 minutes per company
 
 
 def fetch_daily_rows(client, security_id, size=500, max_pages=20):
@@ -402,7 +465,7 @@ def to_candles(rows):
             continue
         d = pick(r, 'businessDate', 'date')
         c = num(pick(r, 'closePrice', 'lastTradedPrice', 'lastUpdatedPrice'))
-        if not d or c is None:
+        if not d or c is None or c <= 0:
             continue
         o = num(r.get('openPrice')) or c
         h = num(r.get('highPrice')) or max(o, c)
@@ -423,7 +486,7 @@ def to_candles(rows):
 
 
 def get_history(security_id):
-    """Daily candles for the longest range NEPSE provides (about 1 year)."""
+    """Daily candles from NEPSE (about the last year)."""
     if security_id is None:
         return {'candles': [], 'volumes': []}
 
@@ -459,6 +522,34 @@ def get_history(security_id):
     if len(result['candles']) >= 2:
         cache.set(key, result, HISTORY_CACHE_SECONDS)
     return result
+
+
+def merge_today(history, row):
+    """Add (or update) today's live session as the newest candle."""
+    candles = list(history['candles'])
+    volumes = list(history['volumes'])
+
+    d = str(row.get('businessDate') or '')[:10]
+    c = num(pick(row, 'lastUpdatedPrice', 'lastTradedPrice', 'closePrice'))
+    if not d or not c:
+        return {'candles': candles, 'volumes': volumes}
+
+    o = num(row.get('openPrice')) or c
+    h = num(row.get('highPrice')) or max(o, c)
+    l = num(row.get('lowPrice')) or min(o, c)
+    v = num(row.get('totalTradedQuantity')) or 0
+
+    candle = {'time': d, 'open': o, 'high': max(h, o, c),
+              'low': min(l, o, c), 'close': c}
+    volume = {'time': d, 'value': v,
+              'color': 'rgba(34,197,94,0.5)' if c >= o else 'rgba(239,68,68,0.5)'}
+
+    if candles and candles[-1]['time'] == d:      # today already in history
+        candles[-1], volumes[-1] = candle, volume
+    elif not candles or d > candles[-1]['time']:  # history is behind today
+        candles.append(candle)
+        volumes.append(volume)
+    return {'candles': candles, 'volumes': volumes}
 
 
 def get_intraday(security_id):
@@ -518,7 +609,21 @@ def company_detail(request, symbol):
     }
 
     security_id = row.get('securityId')
-    history = get_history(security_id)
+
+    # 1) newest data from NEPSE (last ~year + today's live candle)
+    fresh = merge_today(get_history(security_id), row)
+
+    # 2) save it, so history keeps growing and survives NEPSE problems
+    safe = ''.join(ch if ch.isalnum() else '_' for ch in symbol)
+    skey = 'bars_saved_' + safe
+    if fresh['candles'] and not cache.get(skey):
+        save_bars(symbol, fresh['candles'], fresh['volumes'])
+        cache.set(skey, 1, SAVE_THROTTLE_SECONDS)
+
+    # 3) chart everything stored (falls back to the fresh data if nothing is stored)
+    stored = load_bars(symbol)
+    history = stored if len(stored['candles']) >= len(fresh['candles']) else fresh
+
     return render(request, 'market/company.html', {
         'c': info,
         'candles': history['candles'],
@@ -541,8 +646,3 @@ def signup(request):
     else:
         form = SignUpForm()
     return render(request, 'market/signup.html', {'form': form})
-
-
-@login_required
-def movers(request):
-    return render(request, 'market/movers.html', {'market': get_market()})
