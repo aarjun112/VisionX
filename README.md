@@ -13,7 +13,7 @@ python manage.py runserver
 
 check
 migration run 
-
+python -m py_compile market/watchlist_views.py market/watchlist_models.py
 python manage.py makemigrations market
 python manage.py migrate
 python manage.py runserver
