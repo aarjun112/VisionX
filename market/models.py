@@ -1,5 +1,8 @@
 from django.db import models
 
+# watchlist model lives in its own file; importing it here registers it with Django
+from .watchlist_models import WatchlistItem  # noqa: F401
+
 
 class DailyBar(models.Model):
     """One trading day for a company, or for the NEPSE index."""

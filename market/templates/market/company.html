@@ -1,4 +1,5 @@
 {% load static %}
+{% load watchlist_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,6 +29,15 @@
         .range-info { margin-left: auto; font-size: 13px; color: #9CA3AF; text-align: right; }
         .range-info strong { font-size: 15px; }
         @media (max-width: 700px) { .range-info { margin-left: 0; width: 100%; text-align: left; } }
+
+
+        .wl-btn {
+            padding: 9px 16px; border-radius: 10px; border: 1px solid #263247;
+            background: transparent; color: #e5e7eb; font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .wl-btn:hover { border-color: #38bdf8; color: #fff; }
+        .wl-btn.saved { background: rgba(250,204,21,.12); border-color: #FACC15; color: #FACC15; }
+        .wl-btn.saved:hover { background: rgba(239,68,68,.12); border-color: #EF4444; color: #fca5a5; }
     </style>
 </head>
 <body>
@@ -54,7 +64,18 @@
                 <p class="muted" style="margin-top:14px;">{{ c.symbol }}</p>
                 <h1>{{ c.name }}</h1>
             </div>
-            <span class="status">● NEPSE · {{ c.date }}</span>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                {% in_watchlist user c.symbol as saved %}
+                <form method="post" action="{% if saved %}{% url 'watchlist_remove' %}{% else %}{% url 'watchlist_add' %}{% endif %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="symbol" value="{{ c.symbol }}">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="wl-btn{% if saved %} saved{% endif %}">
+                        {% if saved %}★ In watchlist · Remove{% else %}☆ Add to watchlist{% endif %}
+                    </button>
+                </form>
+                <span class="status">● NEPSE · {{ c.date }}</span>
+            </div>
         </header>
 
         <section class="panel">
