@@ -1,0 +1,213 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Watchlist | VisionX</title>
+    <link rel="stylesheet" href="{% static 'market/css/style.css' %}">
+    <style>
+        .wl-add { position: relative; max-width: 460px; margin: 6px 0 20px; }
+        .wl-add input {
+            width: 100%; box-sizing: border-box; padding: 12px 14px 12px 40px;
+            background: #0f172a; border: 1px solid #263247; border-radius: 12px;
+            color: #fff; font-size: 14px;
+        }
+        .wl-add input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56,189,248,.14); }
+        .wl-add svg {
+            position: absolute; left: 13px; top: 14px; width: 17px; height: 17px;
+            stroke: #64748b; fill: none; stroke-width: 1.9; stroke-linecap: round; pointer-events: none;
+        }
+        .wl-results {
+            position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+            background: #0f172a; border: 1px solid #263247; border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(0,0,0,.55); padding: 6px;
+            max-height: 340px; overflow-y: auto; display: none;
+        }
+        .wl-results.open { display: block; }
+        .wl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 10px; }
+        .wl-row:hover { background: #1e293b; }
+        .wl-row .l { min-width: 0; }
+        .wl-row .sym { font-weight: 700; font-size: 14px; }
+        .wl-row .nm { font-size: 12px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wl-empty { padding: 16px 12px; text-align: center; color: #94a3b8; font-size: 14px; }
+        .btn-add, .btn-remove {
+            padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .btn-add { background: #22C55E; border: 0; color: #05210f; }
+        .btn-add:hover { background: #4ade80; }
+        .btn-remove { background: transparent; border: 1px solid #263247; color: #9CA3AF; }
+        .btn-remove:hover { color: #fff; border-color: #EF4444; background: rgba(239,68,68,.12); }
+        .added-tag { font-size: 12px; color: #22C55E; font-weight: 700; }
+        .wl-table th:not(:first-child):not(:nth-child(2)), .wl-table td:not(:first-child):not(:nth-child(2)) { text-align: right; }
+        .wl-empty-state { padding: 60px 20px; text-align: center; color: #94a3b8; }
+        .wl-empty-state strong { display: block; color: #e5e7eb; font-size: 18px; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h2 class="logo">Vision<span>X</span></h2>
+        <p class="muted">NEPAL MARKETS</p>
+        <nav>
+            <a href="{% url 'dashboard' %}">◷ &nbsp; Dashboard</a>
+            <a class="active" href="{% url 'watchlist' %}">☆ &nbsp; Watchlist</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <p style="margin:0 0 10px;">Signed in as <strong>{{ user.username }}</strong></p>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">Log out</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <p class="muted">MY LIST · PRIVATE TO YOU</p>
+                <h1>My Watchlist</h1>
+            </div>
+            <span class="status">{{ items|length }} compan{{ items|length|pluralize:"y,ies" }}</span>
+        </header>
+
+        <div class="wl-add" id="wl-add">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input type="text" id="wl-search" placeholder="Search a company or symbol to add..." autocomplete="off" spellcheck="false">
+            <div class="wl-results" id="wl-results"></div>
+        </div>
+
+        <section class="panel table-panel">
+            {% if items %}
+            <div class="table-wrap">
+                <table class="wl-table">
+                    <thead>
+                        <tr>
+                            <th>SYMBOL</th>
+                            <th>COMPANY</th>
+                            <th>LAST PRICE</th>
+                            <th>CHANGE</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in items %}
+                        <tr>
+                            <td><a class="symbol-link" href="{% url 'company' it.symbol %}">{{ it.symbol }}</a></td>
+                            <td>{% if it.found %}<a class="symbol-link" href="{% url 'company' it.symbol %}">{{ it.name }}</a>{% else %}<span class="muted">Not listed today</span>{% endif %}</td>                            <td>{{ it.price }}</td>
+                            <td class="{% if it.up %}positive{% else %}negative{% endif %}">{% if it.found %}{{ it.change_pts }} ({{ it.change }}){% else %}—{% endif %}</td>
+                            <td>
+                                <form method="post" action="{% url 'watchlist_remove' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="symbol" value="{{ it.symbol }}">
+                                    <input type="hidden" name="next" value="{% url 'watchlist' %}">
+                                    <button type="submit" class="btn-remove">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="wl-empty-state">
+                <strong>Your watchlist is empty</strong>
+                Search above, or open a company page and press "Add to watchlist".
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    {{ companies|json_script:"wl-companies" }}
+
+    <script>
+        (function () {
+            const companies = JSON.parse(document.getElementById("wl-companies").textContent);
+            const input = document.getElementById("wl-search");
+            const results = document.getElementById("wl-results");
+            const box = document.getElementById("wl-add");
+            const CSRF = "{{ csrf_token }}";
+            const ADD_URL = "{% url 'watchlist_add' %}";
+
+            function search(q) {
+                q = q.trim().toLowerCase();
+                if (!q) return [];
+                const out = [];
+                for (const c of companies) {
+                    const s = c.symbol.toLowerCase(), n = c.name.toLowerCase();
+                    let score = -1;
+                    if (s === q) score = 0;
+                    else if (s.startsWith(q)) score = 1;
+                    else if (n.startsWith(q)) score = 2;
+                    else if (s.includes(q)) score = 3;
+                    else if (n.includes(q)) score = 4;
+                    if (score >= 0) out.push({ c: c, score: score });
+                }
+                out.sort((a, b) => a.score - b.score || a.c.symbol.localeCompare(b.c.symbol));
+                return out.slice(0, 8).map(x => x.c);
+            }
+
+            function hidden(name, value) {
+                const i = document.createElement("input");
+                i.type = "hidden"; i.name = name; i.value = value;
+                return i;
+            }
+
+            function render(list) {
+                results.innerHTML = "";
+                if (!list.length) {
+                    const e = document.createElement("div");
+                    e.className = "wl-empty";
+                    e.textContent = "No company found";
+                    results.appendChild(e);
+                } else {
+                    list.forEach(c => {
+                        const row = document.createElement("div");
+                        row.className = "wl-row";
+
+                        const left = document.createElement("div");
+                        left.className = "l";
+                        const sym = document.createElement("div");
+                        sym.className = "sym"; sym.textContent = c.symbol;
+                        const nm = document.createElement("div");
+                        nm.className = "nm"; nm.textContent = c.name;
+                        left.appendChild(sym); left.appendChild(nm);
+                        row.appendChild(left);
+
+                        if (c.saved) {
+                            const t = document.createElement("span");
+                            t.className = "added-tag"; t.textContent = "✓ Added";
+                            row.appendChild(t);
+                        } else {
+                            const f = document.createElement("form");
+                            f.method = "post"; f.action = ADD_URL;
+                            f.appendChild(hidden("csrfmiddlewaretoken", CSRF));
+                            f.appendChild(hidden("symbol", c.symbol));
+                            f.appendChild(hidden("next", window.location.pathname));
+                            const b = document.createElement("button");
+                            b.type = "submit"; b.className = "btn-add"; b.textContent = "Add";
+                            f.appendChild(b);
+                            row.appendChild(f);
+                        }
+                        results.appendChild(row);
+                    });
+                }
+                results.classList.add("open");
+            }
+
+            input.addEventListener("input", function () {
+                if (!input.value.trim()) { results.classList.remove("open"); return; }
+                render(search(input.value));
+            });
+            input.addEventListener("focus", function () {
+                if (input.value.trim()) render(search(input.value));
+            });
+            input.addEventListener("keydown", function (e) {
+                if (e.key === "Escape") { results.classList.remove("open"); input.blur(); }
+            });
+            document.addEventListener("click", function (e) {
+                if (!box.contains(e.target)) results.classList.remove("open");
+            });
+        })();
+    </script>
+</body>
+</html>
