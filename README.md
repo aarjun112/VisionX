@@ -11,6 +11,7 @@ python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 
+
 check
 migration run 
 python -m py_compile market/watchlist_views.py market/watchlist_models.py
