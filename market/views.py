@@ -12,6 +12,8 @@ from nepsepy import NepseClient
 from .forms import SignUpForm
 from .models import DailyBar
 
+from .indicators import compute_all
+
 
 # ---------- helpers ----------
 
@@ -629,6 +631,7 @@ def company_detail(request, symbol):
         'candles': history['candles'],
         'volumes': history['volumes'],
         'intraday': get_intraday(security_id),
+        'indicators': compute_all(history['candles']),
     })
 
 

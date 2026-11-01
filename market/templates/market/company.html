@@ -30,7 +30,6 @@
         .range-info strong { font-size: 15px; }
         @media (max-width: 700px) { .range-info { margin-left: 0; width: 100%; text-align: left; } }
 
-
         .wl-btn {
             padding: 9px 16px; border-radius: 10px; border: 1px solid #263247;
             background: transparent; color: #e5e7eb; font-size: 13px; font-weight: 700; cursor: pointer;
@@ -38,6 +37,23 @@
         .wl-btn:hover { border-color: #38bdf8; color: #fff; }
         .wl-btn.saved { background: rgba(250,204,21,.12); border-color: #FACC15; color: #FACC15; }
         .wl-btn.saved:hover { background: rgba(239,68,68,.12); border-color: #EF4444; color: #fca5a5; }
+
+        /* ---------- indicators ---------- */
+        .ind-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+        .ind-label { font-size: 12px; letter-spacing: 1px; color: #64748b; margin-right: 4px; }
+        .ind-chip {
+            padding: 7px 14px; border-radius: 10px; border: 1px solid #263247;
+            background: transparent; color: #9CA3AF; font-size: 13px; font-weight: 700;
+            cursor: pointer; transition: all .15s;
+        }
+        .ind-chip:hover { color: #fff; border-color: #38bdf8; }
+        .ind-chip.on { background: rgba(56,189,248,.15); border-color: #38bdf8; color: #7dd3fc; }
+        .ind-chip:disabled { opacity: .4; cursor: not-allowed; }
+        #ind-note { font-size: 12px; color: #94a3b8; }
+        .sub-wrap { margin-top: 10px; }
+        .sub-title { font-size: 12px; letter-spacing: 1px; color: #94a3b8; margin: 0 0 6px; }
+        .readings { margin-top: 14px; font-size: 13px; color: #cbd5e1; }
+        .readings strong { color: #94a3b8; letter-spacing: 1px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -46,6 +62,7 @@
         <p class="muted">NEPAL MARKETS</p>
         <nav>
             <a href="/">▦ &nbsp; Dashboard</a>
+            <a href="{% url 'watchlist' %}">☆ &nbsp; Watchlist</a>
             <a class="active" href="#">⌁ &nbsp; {{ c.symbol }}</a>
         </nav>
         <div class="sidebar-bottom">
@@ -82,7 +99,8 @@
             <p class="muted">LAST PRICE (Rs.)</p>
             <h2 class="detail-price">
                 {{ c.price }}
-                <span class="{% if c.up %}positive{% else %}negative{% endif %}" style="font-size:18px;">{{ c.change_pts }} ({{ c.change }})</span>            </h2>
+                <span class="{% if c.up %}positive{% else %}negative{% endif %}" style="font-size:18px;">{{ c.change_pts }} ({{ c.change }})</span>
+            </h2>
             <div class="detail-grid">
                 <div><p>OPEN</p><strong>{{ c.open }}</strong></div>
                 <div><p>HIGH</p><strong>{{ c.high }}</strong></div>
@@ -114,7 +132,29 @@
                     <button type="button" class="range-btn active" data-range="ALL">ALL</button>
                     <div class="range-info" id="range-info"></div>
                 </div>
+
+                <div class="ind-bar" id="ind-bar">
+                    <span class="ind-label">INDICATORS</span>
+                    <button type="button" class="ind-chip" data-ind="volume">Volume</button>
+                    <button type="button" class="ind-chip" data-ind="bb">Bollinger Bands</button>
+                    <button type="button" class="ind-chip" data-ind="st">Supertrend</button>
+                    <button type="button" class="ind-chip" data-ind="rsi">RSI</button>
+                    <button type="button" class="ind-chip" data-ind="macd">MACD</button>
+                    <span id="ind-note"></span>
+                </div>
+
                 <div id="chart-container"></div>
+
+                <div class="sub-wrap" id="rsi-wrap" style="display:none;">
+                    <p class="sub-title">RSI ({{ indicators.params.rsi }})</p>
+                    <div id="rsi-container"></div>
+                </div>
+                <div class="sub-wrap" id="macd-wrap" style="display:none;">
+                    <p class="sub-title">MACD ({{ indicators.params.macd.0 }}, {{ indicators.params.macd.1 }}, {{ indicators.params.macd.2 }})</p>
+                    <div id="macd-container"></div>
+                </div>
+
+                <div class="readings" id="readings"></div>
             {% else %}
                 <div class="no-chart">
                     Price history could not be loaded for {{ c.symbol }} right now.
@@ -122,8 +162,8 @@
                 </div>
             {% endif %}
             <p class="muted footnote">
-                1D shows the latest session minute by minute (Nepal time). Other ranges use daily candles.
-                NEPSE's public data covers about the last year, so ALL shows that full period.
+                1D shows the latest session minute by minute (Nepal time). Other ranges use daily candles
+                and support the indicators. Indicator readings describe the chart, they are not advice.
                 Unofficial data, may be delayed. Not financial advice.
             </p>
         </section>
@@ -134,26 +174,77 @@
     {{ candles|json_script:"candles-data" }}
     {{ volumes|json_script:"volumes-data" }}
     {{ intraday|json_script:"intraday-data" }}
+    {{ indicators|json_script:"indicators-data" }}
 
     <script>
         const container = document.getElementById("chart-container");
         const allCandles = JSON.parse(document.getElementById("candles-data").textContent);
         const allVolumes = JSON.parse(document.getElementById("volumes-data").textContent);
         const intraday = JSON.parse(document.getElementById("intraday-data").textContent);
+        const IND = JSON.parse(document.getElementById("indicators-data").textContent);
 
         if (window.LightweightCharts && container && allCandles.length) {
+
+            // ---------- remembered indicator choices ----------
+            const STORE_KEY = "visionx_indicators";
+            let on = { volume: true, bb: false, st: false, rsi: false, macd: false };
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+                if (saved) { on = Object.assign(on, saved); }
+            } catch (e) {}
+            function saveState() {
+                try { localStorage.setItem(STORE_KEY, JSON.stringify(on)); } catch (e) {}
+            }
+
+            // ---------- indicator lookup tables (time -> point) ----------
+            const maps = {};
+            ["bb_upper", "bb_mid", "bb_lower", "rsi", "macd", "macd_signal", "macd_hist", "supertrend"].forEach(function (k) {
+                const m = new Map();
+                (IND[k] || []).forEach(function (p) { m.set(p.time, p); });
+                maps[k] = m;
+            });
+
+            // one value per candle, so every pane lines up exactly with the price chart
+            function aligned(key, c) {
+                const m = maps[key];
+                return c.map(function (x) {
+                    const p = m.get(x.time);
+                    return p ? { time: x.time, value: p.value } : { time: x.time };
+                });
+            }
+            function alignedST(c, trend) {
+                const m = maps.supertrend;
+                return c.map(function (x) {
+                    const p = m.get(x.time);
+                    return (p && p.trend === trend) ? { time: x.time, value: p.value } : { time: x.time };
+                });
+            }
+            function alignedHist(c) {
+                const m = maps.macd_hist;
+                return c.map(function (x) {
+                    const p = m.get(x.time);
+                    if (!p) { return { time: x.time }; }
+                    return {
+                        time: x.time,
+                        value: p.value,
+                        color: p.value >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)"
+                    };
+                });
+            }
+
+            // ---------- charts ----------
             let chart = null;
-            let mode = null;          // "daily" or "intraday"
+            let mode = null;               // "daily" or "intraday"
+            let currentC = allCandles;     // candles currently on screen
             const series = {};
+            let rsiChart = null, macdChart = null;
+            const sub = {};
+            let syncing = false;
 
-            function buildChart(newMode) {
-                if (chart && mode === newMode) return;
-                if (chart) { chart.remove(); }
-                mode = newMode;
-
-                chart = LightweightCharts.createChart(container, {
-                    width: container.clientWidth,
-                    height: 420,
+            function chartOptions(el, height, timeVisible) {
+                return {
+                    width: el.clientWidth,
+                    height: height,
                     layout: { background: { color: "#111827" }, textColor: "#9CA3AF" },
                     grid: {
                         vertLines: { color: "#202B3D" },
@@ -162,10 +253,48 @@
                     rightPriceScale: { borderColor: "#263247" },
                     timeScale: {
                         borderColor: "#263247",
-                        timeVisible: newMode === "intraday",
+                        timeVisible: timeVisible,
                         secondsVisible: false
                     }
+                };
+            }
+
+            // keep the zoom and scroll of all panes in step
+            function others(src) {
+                return [mode === "daily" ? chart : null, rsiChart, macdChart].filter(function (c) {
+                    return c && c !== src;
                 });
+            }
+            function link(src) {
+                src.timeScale().subscribeVisibleLogicalRangeChange(function (range) {
+                    if (syncing || !range) { return; }
+                    syncing = true;
+                    others(src).forEach(function (c) {
+                        try { c.timeScale().setVisibleLogicalRange(range); } catch (e) {}
+                    });
+                    syncing = false;
+                });
+            }
+
+            function lineOptions(color, width, dashed) {
+                return {
+                    color: color,
+                    lineWidth: width,
+                    lineStyle: dashed ? 2 : 0,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    crosshairMarkerVisible: false,
+                    visible: false
+                };
+            }
+
+            function buildChart(newMode) {
+                if (chart && mode === newMode) { return; }
+                if (chart) { chart.remove(); }
+                mode = newMode;
+
+                chart = LightweightCharts.createChart(container, chartOptions(container, 420, newMode === "intraday"));
+                ["area", "candles", "volume", "bbU", "bbM", "bbL", "stUp", "stDn"].forEach(function (k) { delete series[k]; });
 
                 if (newMode === "intraday") {
                     series.area = chart.addAreaSeries({
@@ -187,9 +316,120 @@
                         priceScaleId: ""
                     });
                     series.volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+                    series.bbU = chart.addLineSeries(lineOptions("#38bdf8", 1, false));
+                    series.bbM = chart.addLineSeries(lineOptions("#94a3b8", 1, true));
+                    series.bbL = chart.addLineSeries(lineOptions("#38bdf8", 1, false));
+                    series.stUp = chart.addLineSeries(lineOptions("#22C55E", 2, false));
+                    series.stDn = chart.addLineSeries(lineOptions("#EF4444", 2, false));
+                    link(chart);
                 }
             }
 
+            function makeRsi() {
+                const el = document.getElementById("rsi-container");
+                rsiChart = LightweightCharts.createChart(el, chartOptions(el, 150, false));
+                sub.rsi = rsiChart.addLineSeries({
+                    color: "#a78bfa",
+                    lineWidth: 2,
+                    priceLineVisible: false,
+                    autoscaleInfoProvider: function () {
+                        return { priceRange: { minValue: 0, maxValue: 100 } };
+                    }
+                });
+                [[70, "#EF4444"], [50, "#475569"], [30, "#22C55E"]].forEach(function (l) {
+                    sub.rsi.createPriceLine({
+                        price: l[0], color: l[1], lineWidth: 1, lineStyle: 2,
+                        axisLabelVisible: true, title: ""
+                    });
+                });
+                link(rsiChart);
+            }
+
+            function makeMacd() {
+                const el = document.getElementById("macd-container");
+                macdChart = LightweightCharts.createChart(el, chartOptions(el, 170, false));
+                sub.hist = macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
+                sub.macd = macdChart.addLineSeries({ color: "#38bdf8", lineWidth: 2, priceLineVisible: false });
+                sub.sig = macdChart.addLineSeries({ color: "#f59e0b", lineWidth: 2, priceLineVisible: false });
+                link(macdChart);
+            }
+
+            function setSubData(c) {
+                if (rsiChart) { sub.rsi.setData(aligned("rsi", c)); }
+                if (macdChart) {
+                    sub.macd.setData(aligned("macd", c));
+                    sub.sig.setData(aligned("macd_signal", c));
+                    sub.hist.setData(alignedHist(c));
+                }
+            }
+
+            // show or hide everything according to the chips
+            function applyToggles() {
+                const daily = mode === "daily";
+
+                document.querySelectorAll(".ind-chip").forEach(function (b) {
+                    b.classList.toggle("on", !!on[b.dataset.ind]);
+                    b.disabled = !daily;
+                });
+
+                if (daily) {
+                    series.volume.applyOptions({ visible: !!on.volume });
+                    [series.bbU, series.bbM, series.bbL].forEach(function (s) { s.applyOptions({ visible: !!on.bb }); });
+                    [series.stUp, series.stDn].forEach(function (s) { s.applyOptions({ visible: !!on.st }); });
+                }
+
+                const showRsi = daily && on.rsi;
+                const showMacd = daily && on.macd;
+                document.getElementById("rsi-wrap").style.display = showRsi ? "block" : "none";
+                document.getElementById("macd-wrap").style.display = showMacd ? "block" : "none";
+                if (showRsi && !rsiChart) { makeRsi(); }
+                if (showMacd && !macdChart) { makeMacd(); }
+
+                if (showRsi) {
+                    rsiChart.applyOptions({ width: document.getElementById("rsi-container").clientWidth });
+                }
+                if (showMacd) {
+                    macdChart.applyOptions({ width: document.getElementById("macd-container").clientWidth });
+                }
+                if (showRsi || showMacd) {
+                    setSubData(currentC);
+                    try {
+                        const r = chart.timeScale().getVisibleLogicalRange();
+                        if (r) {
+                            if (showRsi) { rsiChart.timeScale().setVisibleLogicalRange(r); }
+                            if (showMacd) { macdChart.timeScale().setVisibleLogicalRange(r); }
+                        }
+                    } catch (e) {}
+                }
+
+                // a short message when something cannot be drawn
+                const note = [];
+                if (!daily) {
+                    note.push("Indicators are available on the daily ranges (1W, 1M, 1Y, ALL).");
+                } else {
+                    if (on.rsi && !maps.rsi.size) { note.push("Not enough history for RSI yet."); }
+                    if (on.macd && !maps.macd_signal.size) { note.push("Not enough history for MACD yet."); }
+                    if (on.bb && !maps.bb_mid.size) { note.push("Not enough history for Bollinger Bands yet."); }
+                    if (on.st && !maps.supertrend.size) { note.push("Not enough history for Supertrend yet."); }
+                }
+                document.getElementById("ind-note").textContent = note.join(" ");
+            }
+
+            // ---------- text readings ----------
+            function renderReadings() {
+                const L = IND.latest || {};
+                const parts = [];
+                if (L.rsi !== undefined) { parts.push("RSI " + L.rsi.toFixed(1) + " · " + L.rsi_label); }
+                if (L.macd_label) { parts.push("MACD " + L.macd_label); }
+                if (L.st_label) { parts.push("Supertrend " + L.st_label); }
+                if (L.bb_label) { parts.push("Bollinger: " + L.bb_label); }
+                document.getElementById("readings").innerHTML = parts.length
+                    ? "<strong>LATEST READINGS</strong> &nbsp;" + parts.join(" &nbsp;·&nbsp; ")
+                    : "Not enough history yet for indicator readings.";
+            }
+
+            // ---------- ranges ----------
             const DAYS = { "1W": 7, "1M": 30, "1Y": 365 };
             const LABELS = {
                 "1W": "LAST 7 DAYS", "1M": "LAST 30 DAYS",
@@ -225,16 +465,17 @@
                 const first = intraday[0].value;
                 const last = intraday[intraday.length - 1].value;
                 const pct = first ? ((last - first) / first) * 100 : 0;
-                const vals = intraday.map(p => p.value);
+                const vals = intraday.map(function (p) { return p.value; });
                 const day = new Date(intraday[intraday.length - 1].time * 1000).toISOString().slice(0, 10);
 
                 document.getElementById("range-tag").textContent = "SESSION " + day;
                 setInfo(
                     intraday.length + " price points · " + day + " (Nepal time)" +
                     "<br>Session change: " + changeHtml(last - first, pct) +
-                    " · High " + fmt(Math.max(...vals)) +
-                    " · Low " + fmt(Math.min(...vals))
+                    " · High " + fmt(Math.max.apply(null, vals)) +
+                    " · Low " + fmt(Math.min.apply(null, vals))
                 );
+                applyToggles();
             }
 
             function renderDaily(range) {
@@ -248,13 +489,19 @@
                     c = allCandles.slice(-2); v = allVolumes.slice(-2);
                 } else {
                     const cut = cutoffFor(DAYS[range]);
-                    c = allCandles.filter(x => x.time >= cut);
-                    v = allVolumes.filter(x => x.time >= cut);
+                    c = allCandles.filter(function (x) { return x.time >= cut; });
+                    v = allVolumes.filter(function (x) { return x.time >= cut; });
                 }
                 if (!c.length) { c = allCandles.slice(-2); v = allVolumes.slice(-2); }
+                currentC = c;
 
                 series.candles.setData(c);
                 series.volume.setData(v);
+                series.bbU.setData(aligned("bb_upper", c));
+                series.bbM.setData(aligned("bb_mid", c));
+                series.bbL.setData(aligned("bb_lower", c));
+                series.stUp.setData(alignedST(c, 1));
+                series.stDn.setData(alignedST(c, -1));
                 chart.timeScale().fitContent();
 
                 const first = c[0], last = c[c.length - 1];
@@ -265,9 +512,10 @@
                 setInfo(
                     c.length + " sessions · " + first.time + " → " + last.time +
                     "<br>Range change: " + changeHtml(last.close - base, pct) +
-                    " · High " + fmt(Math.max(...c.map(x => x.high))) +
-                    " · Low " + fmt(Math.min(...c.map(x => x.low)))
+                    " · High " + fmt(Math.max.apply(null, c.map(function (x) { return x.high; }))) +
+                    " · Low " + fmt(Math.min.apply(null, c.map(function (x) { return x.low; })))
                 );
+                applyToggles();
             }
 
             function render(range) {
@@ -276,19 +524,37 @@
                 } else {
                     renderDaily(range);
                 }
-                document.querySelectorAll(".range-btn").forEach(b => {
+                document.querySelectorAll(".range-btn").forEach(function (b) {
                     b.classList.toggle("active", b.dataset.range === range);
                 });
             }
 
-            document.querySelectorAll(".range-btn").forEach(btn => {
-                btn.addEventListener("click", () => render(btn.dataset.range));
+            document.querySelectorAll(".range-btn").forEach(function (btn) {
+                btn.addEventListener("click", function () { render(btn.dataset.range); });
             });
 
+            document.querySelectorAll(".ind-chip").forEach(function (b) {
+                b.addEventListener("click", function () {
+                    if (b.disabled) { return; }
+                    on[b.dataset.ind] = !on[b.dataset.ind];
+                    saveState();
+                    applyToggles();
+                });
+            });
+
+            renderReadings();
             render("ALL");
 
-            new ResizeObserver(() => {
-                if (chart) chart.applyOptions({ width: container.clientWidth });
+            new ResizeObserver(function () {
+                if (chart) { chart.applyOptions({ width: container.clientWidth }); }
+                if (rsiChart) {
+                    const w = document.getElementById("rsi-container").clientWidth;
+                    if (w) { rsiChart.applyOptions({ width: w }); }
+                }
+                if (macdChart) {
+                    const w = document.getElementById("macd-container").clientWidth;
+                    if (w) { macdChart.applyOptions({ width: w }); }
+                }
             }).observe(container);
         }
     </script>
