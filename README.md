@@ -18,3 +18,7 @@ python -m py_compile market/watchlist_views.py market/watchlist_models.py
 python manage.py makemigrations market
 python manage.py migrate
 python manage.py runserver
+
+adding indicators
+python -m py_compile market/indicators.py market/views.py
+python manage.py runserver
