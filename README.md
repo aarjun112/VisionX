@@ -19,6 +19,7 @@ python manage.py makemigrations market
 python manage.py migrate
 python manage.py runserver
 
-adding indicators
+
+adding indicators like rsy.macd,supertrend
 python -m py_compile market/indicators.py market/views.py
 python manage.py runserver
