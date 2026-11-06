@@ -8,6 +8,7 @@
     <title>{{ c.symbol }} | VisionX</title>
     <link rel="stylesheet" href="{% static 'market/css/style.css' %}">
     <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="{% static 'market/js/indicators.js' %}?v=2"></script>
     <style>
         .back-link { color: #9CA3AF; text-decoration: none; font-size: 14px; }
         .back-link:hover { color: #fff; }
@@ -38,7 +39,7 @@
         .wl-btn.saved { background: rgba(250,204,21,.12); border-color: #FACC15; color: #FACC15; }
         .wl-btn.saved:hover { background: rgba(239,68,68,.12); border-color: #EF4444; color: #fca5a5; }
 
-        /* ---------- indicators ---------- */
+        /* ---------- indicator chips ---------- */
         .ind-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
         .ind-label { font-size: 12px; letter-spacing: 1px; color: #64748b; margin-right: 4px; }
         .ind-chip {
@@ -50,10 +51,86 @@
         .ind-chip.on { background: rgba(56,189,248,.15); border-color: #38bdf8; color: #7dd3fc; }
         .ind-chip:disabled { opacity: .4; cursor: not-allowed; }
         #ind-note { font-size: 12px; color: #94a3b8; }
-        .sub-wrap { margin-top: 10px; }
-        .sub-title { font-size: 12px; letter-spacing: 1px; color: #94a3b8; margin: 0 0 6px; }
         .readings { margin-top: 14px; font-size: 13px; color: #cbd5e1; }
         .readings strong { color: #94a3b8; letter-spacing: 1px; font-size: 12px; }
+
+        /* ---------- chart panes and legends ---------- */
+        .pane { position: relative; }
+        .sub-pane { margin-top: 8px; border-top: 1px solid #202B3D; }
+
+        .legend {
+            position: absolute; top: 8px; left: 10px; z-index: 5;
+            display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+            pointer-events: none; font-size: 12.5px; color: #cbd5e1;
+        }
+        .lg-row {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+            padding: 2px 6px; border-radius: 6px;
+            background: rgba(17, 24, 39, .72);
+        }
+        .lg-sym { font-weight: 700; color: #e5e7eb; font-size: 14px; }
+        .lg-name { font-weight: 600; color: #e5e7eb; }
+        .lg-par { color: #94a3b8; }
+        .lg-k { color: #64748b; margin-right: -4px; }
+        .lg-ctl { display: inline-flex; gap: 2px; margin-left: 4px; pointer-events: auto; }
+        .lg-ctl button {
+            width: 22px; height: 22px; padding: 0; display: grid; place-items: center;
+            border: 0; border-radius: 5px; background: transparent; color: #94a3b8; cursor: pointer;
+        }
+        .lg-ctl button:hover { background: #1e293b; color: #fff; }
+        .lg-ctl svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
+            stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .up-c { color: #26a69a; }
+        .down-c { color: #ef5350; }
+
+        /* ---------- settings window ---------- */
+        .vx-modal {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(2, 6, 23, .6); display: none;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .vx-modal.open { display: flex; }
+        .vx-dialog {
+            width: 100%; max-width: 440px; background: #0f172a; color: #e5e7eb;
+            border: 1px solid #263247; border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+        }
+        .vx-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 6px; }
+        .vx-head h3 { margin: 0; font-size: 20px; }
+        .vx-x { border: 0; background: transparent; color: #94a3b8; font-size: 26px; line-height: 1; cursor: pointer; }
+        .vx-x:hover { color: #fff; }
+        .vx-tabs { display: flex; gap: 22px; padding: 0 22px; border-bottom: 1px solid #263247; }
+        .vx-tab {
+            padding: 10px 0; border: 0; border-bottom: 3px solid transparent; background: transparent;
+            color: #94a3b8; font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .vx-tab.on { color: #fff; border-bottom-color: #e5e7eb; }
+        .vx-body { padding: 18px 22px; display: grid; gap: 14px; min-height: 96px; }
+        .vx-field { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .vx-field label { font-size: 14px; color: #cbd5e1; }
+        .vx-field input[type="number"] {
+            width: 110px; padding: 9px 12px; background: #0b1220; border: 1px solid #263247;
+            border-radius: 8px; color: #fff; font-size: 14px;
+        }
+        .vx-field input[type="number"]:focus { outline: none; border-color: #38bdf8; }
+        .vx-field input[type="color"] {
+            width: 54px; height: 34px; padding: 2px; background: #0b1220;
+            border: 1px solid #263247; border-radius: 8px; cursor: pointer;
+        }
+        .vx-error { color: #fca5a5; font-size: 13px; min-height: 18px; padding: 0 22px; }
+        .vx-foot {
+            display: flex; align-items: center; gap: 10px; padding: 14px 22px 18px;
+            border-top: 1px solid #263247;
+        }
+        .vx-foot .grow { flex: 1; }
+        .vx-btn {
+            padding: 9px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+            border: 1px solid #38bdf8; background: transparent; color: #7dd3fc;
+        }
+        .vx-btn.ok { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .vx-btn.ok:hover { background: #3b82f6; }
+        .vx-btn.plain { border-color: #263247; color: #cbd5e1; }
+        .vx-btn.plain:hover { border-color: #64748b; color: #fff; }
     </style>
 </head>
 <body>
@@ -137,20 +214,22 @@
                     <span class="ind-label">INDICATORS</span>
                     <button type="button" class="ind-chip" data-ind="volume">Volume</button>
                     <button type="button" class="ind-chip" data-ind="bb">Bollinger Bands</button>
-                    <button type="button" class="ind-chip" data-ind="st">Supertrend</button>
+                    <button type="button" class="ind-chip" data-ind="st">SuperTrend</button>
                     <button type="button" class="ind-chip" data-ind="rsi">RSI</button>
                     <button type="button" class="ind-chip" data-ind="macd">MACD</button>
                     <span id="ind-note"></span>
                 </div>
 
-                <div id="chart-container"></div>
-
-                <div class="sub-wrap" id="rsi-wrap" style="display:none;">
-                    <p class="sub-title">RSI ({{ indicators.params.rsi }})</p>
+                <div class="pane" id="main-pane">
+                    <div class="legend" id="legend-main"></div>
+                    <div id="chart-container"></div>
+                </div>
+                <div class="pane sub-pane" id="rsi-wrap" style="display:none;">
+                    <div class="legend" id="legend-rsi"></div>
                     <div id="rsi-container"></div>
                 </div>
-                <div class="sub-wrap" id="macd-wrap" style="display:none;">
-                    <p class="sub-title">MACD ({{ indicators.params.macd.0 }}, {{ indicators.params.macd.1 }}, {{ indicators.params.macd.2 }})</p>
+                <div class="pane sub-pane" id="macd-wrap" style="display:none;">
+                    <div class="legend" id="legend-macd"></div>
                     <div id="macd-container"></div>
                 </div>
 
@@ -163,7 +242,8 @@
             {% endif %}
             <p class="muted footnote">
                 1D shows the latest session minute by minute (Nepal time). Other ranges use daily candles
-                and support the indicators. Indicator readings describe the chart, they are not advice.
+                and support the indicators. Use the gear icon on a legend to change its settings.
+                Indicator readings describe the chart, they are not advice.
                 Unofficial data, may be delayed. Not financial advice.
             </p>
         </section>
@@ -171,73 +251,205 @@
         <footer>VisionX · Built for Nepal's stock market · Development preview</footer>
     </main>
 
+    <!-- settings window -->
+    <div class="vx-modal" id="vx-modal">
+        <div class="vx-dialog" role="dialog" aria-modal="true">
+            <div class="vx-head">
+                <h3 id="vx-title">Settings</h3>
+                <button type="button" class="vx-x" id="vx-x" aria-label="Close">&times;</button>
+            </div>
+            <div class="vx-tabs">
+                <button type="button" class="vx-tab on" data-tab="inputs">Inputs</button>
+                <button type="button" class="vx-tab" data-tab="style">Style</button>
+            </div>
+            <div class="vx-body" id="vx-body"></div>
+            <div class="vx-error" id="vx-error"></div>
+            <div class="vx-foot">
+                <button type="button" class="vx-btn plain" id="vx-defaults">Defaults</button>
+                <span class="grow"></span>
+                <button type="button" class="vx-btn" id="vx-cancel">Cancel</button>
+                <button type="button" class="vx-btn ok" id="vx-ok">Ok</button>
+            </div>
+        </div>
+    </div>
+
     {{ candles|json_script:"candles-data" }}
     {{ volumes|json_script:"volumes-data" }}
     {{ intraday|json_script:"intraday-data" }}
-    {{ indicators|json_script:"indicators-data" }}
 
     <script>
         const container = document.getElementById("chart-container");
         const allCandles = JSON.parse(document.getElementById("candles-data").textContent);
         const allVolumes = JSON.parse(document.getElementById("volumes-data").textContent);
         const intraday = JSON.parse(document.getElementById("intraday-data").textContent);
-        const IND = JSON.parse(document.getElementById("indicators-data").textContent);
+        const SYMBOL = "{{ c.symbol|escapejs }}";
 
-        if (window.LightweightCharts && container && allCandles.length) {
+        if (window.LightweightCharts && window.VXIndicators && container && allCandles.length) {
 
-            // ---------- remembered indicator choices ----------
-            const STORE_KEY = "visionx_indicators";
-            let on = { volume: true, bb: false, st: false, rsi: false, macd: false };
+            // =========================================================
+            // settings (saved in this browser)
+            // =========================================================
+            const BG = "#111827";
+            const DEFAULTS = {
+                volume: { on: true,  hidden: false, up: "#26a69a", down: "#ef5350" },
+                bb:     { on: false, hidden: false, length: 20, mult: 2,
+                          mid: "#ff9800", upper: "#2196f3", lower: "#2196f3", fill: "#2196f3" },
+                st:     { on: false, hidden: false, length: 10, factor: 3, up: "#4caf50", down: "#ef5350" },
+                rsi:    { on: false, hidden: false, length: 14, upper: 70, lower: 30, line: "#7e57c2" },
+                macd:   { on: false, hidden: false, fast: 12, slow: 26, signal: 9, macd: "#2962ff", sig: "#ff6d00" }
+            };
+            const SCHEMA = {
+                volume: { title: "Volume", inputs: [], style: [["up", "Rising color"], ["down", "Falling color"]] },
+                bb: {
+                    title: "Bollinger Bands",
+                    inputs: [{ key: "length", label: "Length", min: 1, max: 500, step: 1, int: true },
+                             { key: "mult", label: "Mult", min: 0.1, max: 10, step: 0.1, int: false }],
+                    style: [["mid", "Basis"], ["upper", "Upper"], ["lower", "Lower"], ["fill", "Background"]]
+                },
+                st: {
+                    title: "SuperTrend",
+                    inputs: [{ key: "length", label: "Length", min: 1, max: 200, step: 1, int: true },
+                             { key: "factor", label: "Factor", min: 0.1, max: 20, step: 0.1, int: false }],
+                    style: [["up", "Up trend"], ["down", "Down trend"]]
+                },
+                rsi: {
+                    title: "RSI",
+                    inputs: [{ key: "length", label: "Length", min: 1, max: 200, step: 1, int: true },
+                             { key: "upper", label: "Upper band", min: 1, max: 100, step: 1, int: true },
+                             { key: "lower", label: "Lower band", min: 0, max: 99, step: 1, int: true }],
+                    style: [["line", "RSI line"]]
+                },
+                macd: {
+                    title: "MACD",
+                    inputs: [{ key: "fast", label: "Fast length", min: 1, max: 200, step: 1, int: true },
+                             { key: "slow", label: "Slow length", min: 2, max: 400, step: 1, int: true },
+                             { key: "signal", label: "Signal length", min: 1, max: 200, step: 1, int: true }],
+                    style: [["macd", "MACD line"], ["sig", "Signal line"]]
+                }
+            };
+            const STORE_KEY = "visionx_ind_v2";
+
+            function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+            let cfg = clone(DEFAULTS);
             try {
                 const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
-                if (saved) { on = Object.assign(on, saved); }
+                if (saved) {
+                    Object.keys(DEFAULTS).forEach(function (k) {
+                        if (saved[k]) { cfg[k] = Object.assign({}, DEFAULTS[k], saved[k]); }
+                    });
+                }
             } catch (e) {}
-            function saveState() {
-                try { localStorage.setItem(STORE_KEY, JSON.stringify(on)); } catch (e) {}
+            function saveCfg() {
+                try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch (e) {}
+            }
+            function shown(k) { return !!cfg[k].on && !cfg[k].hidden; }
+
+            // =========================================================
+            // formatting helpers
+            // =========================================================
+            function fmt(n) {
+                return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            function fmtInt(n) {
+                return Math.round(Number(n)).toLocaleString();
+            }
+            function fmtShort(v) {                       // 1.234M, 30.945K ...
+                const a = Math.abs(v);
+                if (a >= 1e9) { return (v / 1e9).toFixed(3) + "B"; }
+                if (a >= 1e6) { return (v / 1e6).toFixed(3) + "M"; }
+                if (a >= 1e3) { return (v / 1e3).toFixed(3) + "K"; }
+                return String(Math.round(v));
+            }
+            function qtyLabel(v) {                       // exact quantity, plus a short form when large
+                if (v === null || v === undefined) { return "—"; }
+                return Math.abs(v) >= 1e6 ? fmtShort(v) + " (" + fmtInt(v) + ")" : fmtInt(v);
+            }
+            function rgba(hex, a) {
+                const h = hex.replace("#", "");
+                const r = parseInt(h.substring(0, 2), 16);
+                const g = parseInt(h.substring(2, 4), 16);
+                const b = parseInt(h.substring(4, 6), 16);
+                return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+            }
+            function pad(n) { return (n < 10 ? "0" : "") + n; }
+            function timeKey(t) {
+                if (typeof t === "string") { return t; }
+                if (t && typeof t === "object" && t.year) { return t.year + "-" + pad(t.month) + "-" + pad(t.day); }
+                return null;
+            }
+            function lastNonNull(arr) {
+                for (let i = arr.length - 1; i >= 0; i--) { if (arr[i] !== null && arr[i] !== undefined) { return arr[i]; } }
+                return null;
+            }
+            function val(arr, i, digits) {
+                const v = arr[i];
+                return (v === null || v === undefined) ? "—" : Number(v).toFixed(digits === undefined ? 2 : digits);
             }
 
-            // ---------- indicator lookup tables (time -> point) ----------
-            const maps = {};
-            ["bb_upper", "bb_mid", "bb_lower", "rsi", "macd", "macd_signal", "macd_hist", "supertrend"].forEach(function (k) {
-                const m = new Map();
-                (IND[k] || []).forEach(function (p) { m.set(p.time, p); });
-                maps[k] = m;
-            });
+            // =========================================================
+            // data
+            // =========================================================
+            const idxByTime = new Map();
+            allCandles.forEach(function (c, i) { idxByTime.set(c.time, i); });
+            const volByTime = new Map();
+            allVolumes.forEach(function (v) { volByTime.set(v.time, v.value); });
 
-            // one value per candle, so every pane lines up exactly with the price chart
-            function aligned(key, c) {
-                const m = maps[key];
-                return c.map(function (x) {
-                    const p = m.get(x.time);
-                    return p ? { time: x.time, value: p.value } : { time: x.time };
+            let IND = null;
+            function recompute() {
+                IND = VXIndicators.compute(allCandles, {
+                    rsi: { length: cfg.rsi.length },
+                    macd: { fast: cfg.macd.fast, slow: cfg.macd.slow, signal: cfg.macd.signal },
+                    bb: { length: cfg.bb.length, mult: cfg.bb.mult },
+                    st: { length: cfg.st.length, factor: cfg.st.factor }
                 });
             }
-            function alignedST(c, trend) {
-                const m = maps.supertrend;
+            recompute();
+
+            // one value per candle, so every pane lines up with the price chart
+            function dataFor(arr, c) {
                 return c.map(function (x) {
-                    const p = m.get(x.time);
-                    return (p && p.trend === trend) ? { time: x.time, value: p.value } : { time: x.time };
+                    const i = idxByTime.get(x.time);
+                    const v = i === undefined ? null : arr[i];
+                    return (v === null || v === undefined) ? { time: x.time } : { time: x.time, value: v };
                 });
             }
-            function alignedHist(c) {
-                const m = maps.macd_hist;
+            function stData(c, trend) {
                 return c.map(function (x) {
-                    const p = m.get(x.time);
-                    if (!p) { return { time: x.time }; }
+                    const i = idxByTime.get(x.time);
+                    if (i !== undefined && IND.stTrend[i] === trend) { return { time: x.time, value: IND.stValue[i] }; }
+                    return { time: x.time };
+                });
+            }
+            function histData(c) {
+                return c.map(function (x) {
+                    const i = idxByTime.get(x.time);
+                    const v = i === undefined ? null : IND.macdHist[i];
+                    if (v === null || v === undefined) { return { time: x.time }; }
+                    return { time: x.time, value: v, color: v >= 0 ? "rgba(38,166,154,0.7)" : "rgba(239,83,80,0.7)" };
+                });
+            }
+            function volumeData(c) {
+                return c.map(function (x) {
                     return {
                         time: x.time,
-                        value: p.value,
-                        color: p.value >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)"
+                        value: volByTime.get(x.time) || 0,
+                        color: x.close >= x.open ? rgba(cfg.volume.up, 0.5) : rgba(cfg.volume.down, 0.5)
                     };
                 });
             }
+            function constData(c, v) {
+                return c.map(function (x) { return { time: x.time, value: v }; });
+            }
 
-            // ---------- charts ----------
-            let chart = null;
-            let mode = null;               // "daily" or "intraday"
-            let currentC = allCandles;     // candles currently on screen
+            // =========================================================
+            // charts
+            // =========================================================
+            let chart = null, rsiChart = null, macdChart = null;
+            let mode = null;                // "daily" or "intraday"
+            let currentC = allCandles;
+            let currentRange = "ALL";
             const series = {};
-            let rsiChart = null, macdChart = null;
             const sub = {};
             let syncing = false;
 
@@ -245,21 +457,14 @@
                 return {
                     width: el.clientWidth,
                     height: height,
-                    layout: { background: { color: "#111827" }, textColor: "#9CA3AF" },
-                    grid: {
-                        vertLines: { color: "#202B3D" },
-                        horzLines: { color: "#202B3D" }
-                    },
-                    rightPriceScale: { borderColor: "#263247" },
-                    timeScale: {
-                        borderColor: "#263247",
-                        timeVisible: timeVisible,
-                        secondsVisible: false
-                    }
+                    layout: { background: { color: BG }, textColor: "#9CA3AF" },
+                    grid: { vertLines: { color: "#202B3D" }, horzLines: { color: "#202B3D" } },
+                    rightPriceScale: { borderColor: "#263247", minimumWidth: 74 },
+                    timeScale: { borderColor: "#263247", timeVisible: timeVisible, secondsVisible: false }
                 };
             }
 
-            // keep the zoom and scroll of all panes in step
+            // keep zoom and scroll of all panes in step
             function others(src) {
                 return [mode === "daily" ? chart : null, rsiChart, macdChart].filter(function (c) {
                     return c && c !== src;
@@ -276,14 +481,19 @@
                 });
             }
 
-            function lineOptions(color, width, dashed) {
+            const HIDDEN_LINE = "rgba(0,0,0,0)";
+            function plainLine(color, width, dashed) {
                 return {
-                    color: color,
-                    lineWidth: width,
-                    lineStyle: dashed ? 2 : 0,
-                    priceLineVisible: false,
-                    lastValueVisible: false,
-                    crosshairMarkerVisible: false,
+                    color: color, lineWidth: width, lineStyle: dashed ? 2 : 0,
+                    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+                    visible: false
+                };
+            }
+            function fillArea(fillColor) {
+                return {
+                    topColor: fillColor, bottomColor: fillColor,
+                    lineColor: HIDDEN_LINE, lineVisible: false, lineWidth: 1,
+                    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
                     visible: false
                 };
             }
@@ -292,106 +502,230 @@
                 if (chart && mode === newMode) { return; }
                 if (chart) { chart.remove(); }
                 mode = newMode;
+                Object.keys(series).forEach(function (k) { delete series[k]; });
 
                 chart = LightweightCharts.createChart(container, chartOptions(container, 420, newMode === "intraday"));
-                ["area", "candles", "volume", "bbU", "bbM", "bbL", "stUp", "stDn"].forEach(function (k) { delete series[k]; });
 
                 if (newMode === "intraday") {
                     series.area = chart.addAreaSeries({
-                        lineColor: "#22C55E",
-                        topColor: "rgba(34,197,94,0.35)",
-                        bottomColor: "rgba(34,197,94,0.02)",
-                        lineWidth: 2
+                        lineColor: "#22C55E", topColor: "rgba(34,197,94,0.35)",
+                        bottomColor: "rgba(34,197,94,0.02)", lineWidth: 2
                     });
-                } else {
-                    series.candles = chart.addCandlestickSeries({
-                        upColor: "#22C55E",
-                        downColor: "#EF4444",
-                        borderVisible: false,
-                        wickUpColor: "#22C55E",
-                        wickDownColor: "#EF4444"
+                    chart.subscribeCrosshairMove(function (p) {
+                        const d = p.seriesData && series.area ? p.seriesData.get(series.area) : null;
+                        updateIntradayLegend(d ? d.value : null);
                     });
-                    series.volume = chart.addHistogramSeries({
-                        priceFormat: { type: "volume" },
-                        priceScaleId: ""
-                    });
-                    series.volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-
-                    series.bbU = chart.addLineSeries(lineOptions("#38bdf8", 1, false));
-                    series.bbM = chart.addLineSeries(lineOptions("#94a3b8", 1, true));
-                    series.bbL = chart.addLineSeries(lineOptions("#38bdf8", 1, false));
-                    series.stUp = chart.addLineSeries(lineOptions("#22C55E", 2, false));
-                    series.stDn = chart.addLineSeries(lineOptions("#EF4444", 2, false));
-                    link(chart);
+                    return;
                 }
+
+                // bands fill first, so everything else is drawn on top of it
+                series.bbFill = chart.addAreaSeries(fillArea(rgba(cfg.bb.fill, 0.12)));
+                series.bbMask = chart.addAreaSeries(fillArea(BG));
+
+                series.candles = chart.addCandlestickSeries({
+                    upColor: "#26a69a", downColor: "#ef5350", borderVisible: false,
+                    wickUpColor: "#26a69a", wickDownColor: "#ef5350"
+                });
+
+                series.volume = chart.addHistogramSeries({
+                    priceFormat: { type: "custom", formatter: fmtShort, minMove: 1 },
+                    priceScaleId: "",
+                    priceLineVisible: false,
+                    lastValueVisible: true,
+                    visible: false
+                });
+                series.volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+                series.bbU = chart.addLineSeries(plainLine(cfg.bb.upper, 1, false));
+                series.bbM = chart.addLineSeries(plainLine(cfg.bb.mid, 1, false));
+                series.bbL = chart.addLineSeries(plainLine(cfg.bb.lower, 1, false));
+                series.stUp = chart.addLineSeries(plainLine(cfg.st.up, 2, false));
+                series.stDn = chart.addLineSeries(plainLine(cfg.st.down, 2, false));
+
+                link(chart);
+                chart.subscribeCrosshairMove(function (p) { updateLegends(timeKey(p.time)); });
             }
 
             function makeRsi() {
                 const el = document.getElementById("rsi-container");
-                rsiChart = LightweightCharts.createChart(el, chartOptions(el, 150, false));
+                rsiChart = LightweightCharts.createChart(el, chartOptions(el, 160, false));
+
+                // shaded band between the two levels
+                sub.band = rsiChart.addBaselineSeries({
+                    baseValue: { type: "price", price: cfg.rsi.lower },
+                    topLineColor: HIDDEN_LINE,
+                    topFillColor1: rgba(cfg.rsi.line, 0.13), topFillColor2: rgba(cfg.rsi.line, 0.13),
+                    bottomLineColor: HIDDEN_LINE,
+                    bottomFillColor1: HIDDEN_LINE, bottomFillColor2: HIDDEN_LINE,
+                    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false
+                });
                 sub.rsi = rsiChart.addLineSeries({
-                    color: "#a78bfa",
-                    lineWidth: 2,
-                    priceLineVisible: false,
-                    autoscaleInfoProvider: function () {
-                        return { priceRange: { minValue: 0, maxValue: 100 } };
+                    color: cfg.rsi.line, lineWidth: 2,
+                    priceLineVisible: false, lastValueVisible: true,
+                    autoscaleInfoProvider: function (original) {
+                        const r = original();
+                        if (!r) { return { priceRange: { minValue: 20, maxValue: 80 } }; }
+                        r.priceRange.minValue = Math.min(r.priceRange.minValue, 20);
+                        r.priceRange.maxValue = Math.max(r.priceRange.maxValue, 80);
+                        return r;
                     }
                 });
-                [[70, "#EF4444"], [50, "#475569"], [30, "#22C55E"]].forEach(function (l) {
+                [cfg.rsi.upper, (cfg.rsi.upper + cfg.rsi.lower) / 2, cfg.rsi.lower].forEach(function (lv) {
                     sub.rsi.createPriceLine({
-                        price: l[0], color: l[1], lineWidth: 1, lineStyle: 2,
-                        axisLabelVisible: true, title: ""
+                        price: lv, color: "#787b86", lineWidth: 1, lineStyle: 2,
+                        axisLabelVisible: false, title: ""
                     });
                 });
                 link(rsiChart);
+                rsiChart.subscribeCrosshairMove(function (p) { updateLegends(timeKey(p.time)); });
             }
 
             function makeMacd() {
                 const el = document.getElementById("macd-container");
                 macdChart = LightweightCharts.createChart(el, chartOptions(el, 170, false));
                 sub.hist = macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
-                sub.macd = macdChart.addLineSeries({ color: "#38bdf8", lineWidth: 2, priceLineVisible: false });
-                sub.sig = macdChart.addLineSeries({ color: "#f59e0b", lineWidth: 2, priceLineVisible: false });
+                sub.macd = macdChart.addLineSeries({
+                    color: cfg.macd.macd, lineWidth: 2, priceLineVisible: false, lastValueVisible: false
+                });
+                sub.sig = macdChart.addLineSeries({
+                    color: cfg.macd.sig, lineWidth: 2, priceLineVisible: false, lastValueVisible: false
+                });
                 link(macdChart);
+                macdChart.subscribeCrosshairMove(function (p) { updateLegends(timeKey(p.time)); });
             }
 
             function setSubData(c) {
-                if (rsiChart) { sub.rsi.setData(aligned("rsi", c)); }
+                if (rsiChart) {
+                    sub.band.setData(constData(c, cfg.rsi.upper));
+                    sub.rsi.setData(dataFor(IND.rsi, c));
+                    sub.rsi.applyOptions({ visible: !cfg.rsi.hidden });
+                    sub.band.applyOptions({ visible: !cfg.rsi.hidden });
+                }
                 if (macdChart) {
-                    sub.macd.setData(aligned("macd", c));
-                    sub.sig.setData(aligned("macd_signal", c));
-                    sub.hist.setData(alignedHist(c));
+                    sub.macd.setData(dataFor(IND.macd, c));
+                    sub.sig.setData(dataFor(IND.macdSignal, c));
+                    sub.hist.setData(histData(c));
+                    [sub.macd, sub.sig, sub.hist].forEach(function (s) { s.applyOptions({ visible: !cfg.macd.hidden }); });
                 }
             }
 
-            // show or hide everything according to the chips
-            function applyToggles() {
+            // =========================================================
+            // legends (top-left of every pane)
+            // =========================================================
+            const ICON = {
+                eye: '<svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+                eyeOff: '<svg viewBox="0 0 24 24"><path d="M17.9 17.9A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A10.7 10.7 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2M1 1l22 22"/></svg>',
+                gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+                x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+            };
+            function ctl(k) {
+                function b(act, icon, title) {
+                    return '<button type="button" data-act="' + act + '" data-ind="' + k + '" title="' + title + '">' + icon + '</button>';
+                }
+                return '<span class="lg-ctl">' +
+                    b("eye", cfg[k].hidden ? ICON.eyeOff : ICON.eye, cfg[k].hidden ? "Show" : "Hide") +
+                    b("gear", ICON.gear, "Settings") +
+                    b("close", ICON.x, "Remove") + '</span>';
+            }
+            function colored(text, color) {
+                return '<span style="color:' + color + '">' + text + '</span>';
+            }
+
+            let lastKey = null;
+            function updateLegends(key) {
+                if (mode !== "daily") { return; }
+                const i = (key && idxByTime.has(key)) ? idxByTime.get(key) : allCandles.length - 1;
+                lastKey = key;
+                const c = allCandles[i];
+                const prev = i > 0 ? allCandles[i - 1].close : null;
+                const up = prev === null ? c.close >= c.open : c.close >= prev;
+                const cls = up ? "up-c" : "down-c";
+
+                let html = '<div class="lg-row"><span class="lg-sym">' + SYMBOL + ' · 1D</span>' +
+                    '<span class="lg-k">O</span><span class="' + cls + '">' + fmt(c.open) + '</span>' +
+                    '<span class="lg-k">H</span><span class="' + cls + '">' + fmt(c.high) + '</span>' +
+                    '<span class="lg-k">L</span><span class="' + cls + '">' + fmt(c.low) + '</span>' +
+                    '<span class="lg-k">C</span><span class="' + cls + '">' + fmt(c.close) + '</span>';
+                if (prev !== null) {
+                    const d = c.close - prev;
+                    html += '<span class="' + cls + '">' + (d >= 0 ? "+" : "") + fmt(d) +
+                        ' (' + (d >= 0 ? "+" : "") + (prev ? (d / prev * 100).toFixed(2) : "0.00") + '%)</span>';
+                }
+                html += '</div>';
+
+                if (cfg.volume.on) {
+                    const v = volByTime.get(c.time);
+                    html += '<div class="lg-row"><span class="lg-name">Volume</span>' +
+                        colored(qtyLabel(v), c.close >= c.open ? cfg.volume.up : cfg.volume.down) + ctl("volume") + '</div>';
+                }
+                if (cfg.bb.on) {
+                    html += '<div class="lg-row"><span class="lg-name">BB</span>' +
+                        '<span class="lg-par">' + cfg.bb.length + ' ' + cfg.bb.mult + '</span>' +
+                        colored(val(IND.bbMid, i), cfg.bb.mid) +
+                        colored(val(IND.bbUpper, i), cfg.bb.upper) +
+                        colored(val(IND.bbLower, i), cfg.bb.lower) + ctl("bb") + '</div>';
+                }
+                if (cfg.st.on) {
+                    const t = IND.stTrend[i];
+                    html += '<div class="lg-row"><span class="lg-name">SuperTrend</span>' +
+                        '<span class="lg-par">' + cfg.st.length + ' ' + cfg.st.factor + '</span>' +
+                        colored(val(IND.stValue, i), t === -1 ? cfg.st.down : cfg.st.up) + ctl("st") + '</div>';
+                }
+                document.getElementById("legend-main").innerHTML = html;
+
+                if (cfg.rsi.on) {
+                    document.getElementById("legend-rsi").innerHTML =
+                        '<div class="lg-row"><span class="lg-name">RSI</span>' +
+                        '<span class="lg-par">' + cfg.rsi.length + '</span>' +
+                        colored(val(IND.rsi, i), cfg.rsi.line) + ctl("rsi") + '</div>';
+                }
+                if (cfg.macd.on) {
+                    const h = IND.macdHist[i];
+                    document.getElementById("legend-macd").innerHTML =
+                        '<div class="lg-row"><span class="lg-name">MACD</span>' +
+                        '<span class="lg-par">' + cfg.macd.fast + ' ' + cfg.macd.slow + ' ' + cfg.macd.signal + '</span>' +
+                        colored(val(IND.macdHist, i, 3), (h !== null && h < 0) ? "#ef5350" : "#26a69a") +
+                        colored(val(IND.macd, i, 3), cfg.macd.macd) +
+                        colored(val(IND.macdSignal, i, 3), cfg.macd.sig) + ctl("macd") + '</div>';
+                }
+            }
+
+            function updateIntradayLegend(price) {
+                const last = intraday.length ? intraday[intraday.length - 1].value : null;
+                const p = (price === null || price === undefined) ? last : price;
+                document.getElementById("legend-main").innerHTML =
+                    '<div class="lg-row"><span class="lg-sym">' + SYMBOL + ' · Today</span>' +
+                    '<span>' + (p === null ? "—" : fmt(p)) + '</span></div>';
+            }
+
+            // =========================================================
+            // showing and hiding things
+            // =========================================================
+            function applyVisibility() {
                 const daily = mode === "daily";
 
                 document.querySelectorAll(".ind-chip").forEach(function (b) {
-                    b.classList.toggle("on", !!on[b.dataset.ind]);
+                    b.classList.toggle("on", !!cfg[b.dataset.ind].on);
                     b.disabled = !daily;
                 });
 
                 if (daily) {
-                    series.volume.applyOptions({ visible: !!on.volume });
-                    [series.bbU, series.bbM, series.bbL].forEach(function (s) { s.applyOptions({ visible: !!on.bb }); });
-                    [series.stUp, series.stDn].forEach(function (s) { s.applyOptions({ visible: !!on.st }); });
+                    series.volume.applyOptions({ visible: shown("volume") });
+                    [series.bbFill, series.bbMask, series.bbU, series.bbM, series.bbL].forEach(function (s) {
+                        s.applyOptions({ visible: shown("bb") });
+                    });
+                    [series.stUp, series.stDn].forEach(function (s) { s.applyOptions({ visible: shown("st") }); });
                 }
 
-                const showRsi = daily && on.rsi;
-                const showMacd = daily && on.macd;
+                const showRsi = daily && cfg.rsi.on;
+                const showMacd = daily && cfg.macd.on;
                 document.getElementById("rsi-wrap").style.display = showRsi ? "block" : "none";
                 document.getElementById("macd-wrap").style.display = showMacd ? "block" : "none";
                 if (showRsi && !rsiChart) { makeRsi(); }
                 if (showMacd && !macdChart) { makeMacd(); }
+                if (showRsi) { rsiChart.applyOptions({ width: document.getElementById("rsi-container").clientWidth }); }
+                if (showMacd) { macdChart.applyOptions({ width: document.getElementById("macd-container").clientWidth }); }
 
-                if (showRsi) {
-                    rsiChart.applyOptions({ width: document.getElementById("rsi-container").clientWidth });
-                }
-                if (showMacd) {
-                    macdChart.applyOptions({ width: document.getElementById("macd-container").clientWidth });
-                }
                 if (showRsi || showMacd) {
                     setSubData(currentC);
                     try {
@@ -403,38 +737,49 @@
                     } catch (e) {}
                 }
 
-                // a short message when something cannot be drawn
                 const note = [];
                 if (!daily) {
                     note.push("Indicators are available on the daily ranges (1W, 1M, 1Y, ALL).");
                 } else {
-                    if (on.rsi && !maps.rsi.size) { note.push("Not enough history for RSI yet."); }
-                    if (on.macd && !maps.macd_signal.size) { note.push("Not enough history for MACD yet."); }
-                    if (on.bb && !maps.bb_mid.size) { note.push("Not enough history for Bollinger Bands yet."); }
-                    if (on.st && !maps.supertrend.size) { note.push("Not enough history for Supertrend yet."); }
+                    if (cfg.rsi.on && lastNonNull(IND.rsi) === null) { note.push("Not enough history for RSI yet."); }
+                    if (cfg.macd.on && lastNonNull(IND.macdSignal) === null) { note.push("Not enough history for MACD yet."); }
+                    if (cfg.bb.on && lastNonNull(IND.bbMid) === null) { note.push("Not enough history for Bollinger Bands yet."); }
+                    if (cfg.st.on && lastNonNull(IND.stValue) === null) { note.push("Not enough history for SuperTrend yet."); }
                 }
                 document.getElementById("ind-note").textContent = note.join(" ");
+
+                if (daily) { updateLegends(lastKey); }
             }
 
-            // ---------- text readings ----------
+            // =========================================================
+            // readings under the chart
+            // =========================================================
             function renderReadings() {
-                const L = IND.latest || {};
                 const parts = [];
-                if (L.rsi !== undefined) { parts.push("RSI " + L.rsi.toFixed(1) + " · " + L.rsi_label); }
-                if (L.macd_label) { parts.push("MACD " + L.macd_label); }
-                if (L.st_label) { parts.push("Supertrend " + L.st_label); }
-                if (L.bb_label) { parts.push("Bollinger: " + L.bb_label); }
+                const r = lastNonNull(IND.rsi);
+                if (r !== null) {
+                    const label = r >= cfg.rsi.upper ? "Overbought" : r <= cfg.rsi.lower ? "Oversold" : "Neutral";
+                    parts.push("RSI " + r.toFixed(1) + " · " + label);
+                }
+                const m = lastNonNull(IND.macd), s = lastNonNull(IND.macdSignal);
+                if (m !== null && s !== null) { parts.push("MACD " + (m > s ? "Bullish" : "Bearish")); }
+                const t = lastNonNull(IND.stTrend);
+                if (t !== null) { parts.push("SuperTrend " + (t === 1 ? "Uptrend" : "Downtrend")); }
+                const u = lastNonNull(IND.bbUpper), lo = lastNonNull(IND.bbLower);
+                if (u !== null && lo !== null) {
+                    const close = allCandles[allCandles.length - 1].close;
+                    parts.push("Bollinger: " + (close > u ? "Above upper band" : close < lo ? "Below lower band" : "Inside the bands"));
+                }
                 document.getElementById("readings").innerHTML = parts.length
                     ? "<strong>LATEST READINGS</strong> &nbsp;" + parts.join(" &nbsp;·&nbsp; ")
                     : "Not enough history yet for indicator readings.";
             }
 
-            // ---------- ranges ----------
+            // =========================================================
+            // ranges
+            // =========================================================
             const DAYS = { "1W": 7, "1M": 30, "1Y": 365 };
-            const LABELS = {
-                "1W": "LAST 7 DAYS", "1M": "LAST 30 DAYS",
-                "1Y": "LAST 12 MONTHS", "ALL": "ALL AVAILABLE"
-            };
+            const LABELS = { "1W": "LAST 7 DAYS", "1M": "LAST 30 DAYS", "1Y": "LAST 12 MONTHS", "ALL": "ALL AVAILABLE" };
             const lastDate = allCandles[allCandles.length - 1].time;
 
             function cutoffFor(days) {
@@ -442,15 +787,7 @@
                 d.setUTCDate(d.getUTCDate() - days);
                 return d.toISOString().slice(0, 10);
             }
-
-            function fmt(n) {
-                return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
-
-            function setInfo(html) {
-                document.getElementById("range-info").innerHTML = html;
-            }
-
+            function setInfo(html) { document.getElementById("range-info").innerHTML = html; }
             function changeHtml(pts, pct) {
                 const cls = pts >= 0 ? "positive" : "negative";
                 const sign = pts >= 0 ? "+" : "";
@@ -475,33 +812,34 @@
                     " · High " + fmt(Math.max.apply(null, vals)) +
                     " · Low " + fmt(Math.min.apply(null, vals))
                 );
-                applyToggles();
+                updateIntradayLegend(null);
+                applyVisibility();
             }
 
             function renderDaily(range) {
                 buildChart("daily");
 
-                let c, v;
+                let c;
                 if (range === "ALL") {
-                    c = allCandles; v = allVolumes;
+                    c = allCandles;
                 } else if (range === "1D") {
-                    // no intraday data available: show the last two sessions
-                    c = allCandles.slice(-2); v = allVolumes.slice(-2);
+                    c = allCandles.slice(-2);          // no intraday data: last two sessions
                 } else {
                     const cut = cutoffFor(DAYS[range]);
                     c = allCandles.filter(function (x) { return x.time >= cut; });
-                    v = allVolumes.filter(function (x) { return x.time >= cut; });
                 }
-                if (!c.length) { c = allCandles.slice(-2); v = allVolumes.slice(-2); }
+                if (!c.length) { c = allCandles.slice(-2); }
                 currentC = c;
 
                 series.candles.setData(c);
-                series.volume.setData(v);
-                series.bbU.setData(aligned("bb_upper", c));
-                series.bbM.setData(aligned("bb_mid", c));
-                series.bbL.setData(aligned("bb_lower", c));
-                series.stUp.setData(alignedST(c, 1));
-                series.stDn.setData(alignedST(c, -1));
+                series.volume.setData(volumeData(c));
+                series.bbFill.setData(dataFor(IND.bbUpper, c));
+                series.bbMask.setData(dataFor(IND.bbLower, c));
+                series.bbU.setData(dataFor(IND.bbUpper, c));
+                series.bbM.setData(dataFor(IND.bbMid, c));
+                series.bbL.setData(dataFor(IND.bbLower, c));
+                series.stUp.setData(stData(c, 1));
+                series.stDn.setData(stData(c, -1));
                 chart.timeScale().fitContent();
 
                 const first = c[0], last = c[c.length - 1];
@@ -515,31 +853,145 @@
                     " · High " + fmt(Math.max.apply(null, c.map(function (x) { return x.high; }))) +
                     " · Low " + fmt(Math.min.apply(null, c.map(function (x) { return x.low; })))
                 );
-                applyToggles();
+                applyVisibility();
             }
 
             function render(range) {
-                if (range === "1D" && intraday.length >= 2) {
-                    renderIntraday();
-                } else {
-                    renderDaily(range);
-                }
+                currentRange = range;
+                if (range === "1D" && intraday.length >= 2) { renderIntraday(); } else { renderDaily(range); }
                 document.querySelectorAll(".range-btn").forEach(function (b) {
                     b.classList.toggle("active", b.dataset.range === range);
                 });
             }
 
-            document.querySelectorAll(".range-btn").forEach(function (btn) {
-                btn.addEventListener("click", function () { render(btn.dataset.range); });
+            // after a setting changes, rebuild every pane from scratch
+            function rebuildAll() {
+                if (chart) { chart.remove(); chart = null; }
+                if (rsiChart) { rsiChart.remove(); rsiChart = null; }
+                if (macdChart) { macdChart.remove(); macdChart = null; }
+                mode = null;
+                recompute();
+                renderReadings();
+                render(currentRange);
+            }
+
+            // =========================================================
+            // settings window
+            // =========================================================
+            const modal = document.getElementById("vx-modal");
+            let editing = null, draft = null, tab = "inputs";
+
+            function openSettings(k) {
+                editing = k;
+                draft = clone(cfg[k]);
+                tab = SCHEMA[k].inputs.length ? "inputs" : "style";
+                document.getElementById("vx-title").textContent = SCHEMA[k].title;
+                document.getElementById("vx-error").textContent = "";
+                renderModal();
+                modal.classList.add("open");
+            }
+            function closeSettings() {
+                modal.classList.remove("open");
+                editing = null;
+                draft = null;
+            }
+            function renderModal() {
+                const sch = SCHEMA[editing];
+                document.querySelectorAll(".vx-tab").forEach(function (b) {
+                    b.classList.toggle("on", b.dataset.tab === tab);
+                    b.style.display = (b.dataset.tab === "inputs" && !sch.inputs.length) ? "none" : "";
+                });
+                const body = document.getElementById("vx-body");
+                body.innerHTML = "";
+                if (tab === "inputs") {
+                    sch.inputs.forEach(function (f) {
+                        const row = document.createElement("div");
+                        row.className = "vx-field";
+                        row.innerHTML = '<label>' + f.label + '</label>';
+                        const inp = document.createElement("input");
+                        inp.type = "number"; inp.min = f.min; inp.max = f.max; inp.step = f.step;
+                        inp.value = draft[f.key];
+                        inp.addEventListener("input", function () { draft[f.key] = inp.value === "" ? "" : Number(inp.value); });
+                        row.appendChild(inp);
+                        body.appendChild(row);
+                    });
+                } else {
+                    sch.style.forEach(function (s) {
+                        const row = document.createElement("div");
+                        row.className = "vx-field";
+                        row.innerHTML = '<label>' + s[1] + '</label>';
+                        const inp = document.createElement("input");
+                        inp.type = "color"; inp.value = draft[s[0]];
+                        inp.addEventListener("input", function () { draft[s[0]] = inp.value; });
+                        row.appendChild(inp);
+                        body.appendChild(row);
+                    });
+                }
+            }
+            function commitSettings() {
+                const sch = SCHEMA[editing];
+                for (let n = 0; n < sch.inputs.length; n++) {
+                    const f = sch.inputs[n];
+                    let v = Number(draft[f.key]);
+                    if (draft[f.key] === "" || !isFinite(v)) { return "Enter a number for " + f.label + "."; }
+                    v = Math.min(f.max, Math.max(f.min, v));
+                    draft[f.key] = f.int ? Math.round(v) : v;
+                }
+                if (editing === "macd" && draft.fast >= draft.slow) { return "Fast length must be smaller than slow length."; }
+                if (editing === "rsi" && draft.lower >= draft.upper) { return "Lower band must be below the upper band."; }
+                cfg[editing] = Object.assign({}, cfg[editing], draft);
+                saveCfg();
+                return "";
+            }
+
+            document.querySelectorAll(".vx-tab").forEach(function (b) {
+                b.addEventListener("click", function () { tab = b.dataset.tab; renderModal(); });
+            });
+            document.getElementById("vx-ok").addEventListener("click", function () {
+                const err = commitSettings();
+                document.getElementById("vx-error").textContent = err;
+                if (!err) { closeSettings(); rebuildAll(); }
+            });
+            document.getElementById("vx-defaults").addEventListener("click", function () {
+                const keep = { on: draft.on, hidden: draft.hidden };
+                draft = Object.assign(clone(DEFAULTS[editing]), keep);
+                document.getElementById("vx-error").textContent = "";
+                renderModal();
+            });
+            document.getElementById("vx-cancel").addEventListener("click", closeSettings);
+            document.getElementById("vx-x").addEventListener("click", closeSettings);
+            modal.addEventListener("click", function (e) { if (e.target === modal) { closeSettings(); } });
+            document.addEventListener("keydown", function (e) { if (e.key === "Escape" && editing) { closeSettings(); } });
+
+            // =========================================================
+            // clicks: legend buttons, chips, range buttons
+            // =========================================================
+            ["legend-main", "legend-rsi", "legend-macd"].forEach(function (id) {
+                document.getElementById(id).addEventListener("click", function (e) {
+                    const btn = e.target.closest("button[data-act]");
+                    if (!btn) { return; }
+                    const k = btn.dataset.ind, act = btn.dataset.act;
+                    if (act === "gear") { openSettings(k); return; }
+                    if (act === "eye") { cfg[k].hidden = !cfg[k].hidden; }
+                    if (act === "close") { cfg[k].on = false; cfg[k].hidden = false; }
+                    saveCfg();
+                    applyVisibility();
+                });
             });
 
             document.querySelectorAll(".ind-chip").forEach(function (b) {
                 b.addEventListener("click", function () {
                     if (b.disabled) { return; }
-                    on[b.dataset.ind] = !on[b.dataset.ind];
-                    saveState();
-                    applyToggles();
+                    const k = b.dataset.ind;
+                    cfg[k].on = !cfg[k].on;
+                    if (cfg[k].on) { cfg[k].hidden = false; }
+                    saveCfg();
+                    applyVisibility();
                 });
+            });
+
+            document.querySelectorAll(".range-btn").forEach(function (btn) {
+                btn.addEventListener("click", function () { render(btn.dataset.range); });
             });
 
             renderReadings();
