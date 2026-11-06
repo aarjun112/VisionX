@@ -23,3 +23,7 @@ python manage.py runserver
 adding indicators like rsy.macd,supertrend
 python -m py_compile market/indicators.py market/views.py
 python manage.py runserver
+
+
+simply start by
+python manage.py runserver
