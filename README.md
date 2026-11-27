@@ -27,3 +27,5 @@ python manage.py runserver
 
 simply start by
 python manage.py runserver
+
+live
